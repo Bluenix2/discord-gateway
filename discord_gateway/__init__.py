@@ -7,12 +7,20 @@ It means that this implementation can be reused for libraries implemented in a
 threading fashion or asyncio/trio/curio.
 """
 
-from typing import Literal, Optional, Tuple, Dict, Any
+import json
+import zlib
+from collections import deque
+from urllib.parse import urlencode
+from typing import Generator, Literal, Optional, Tuple, Dict, Any
 
+import erlpack
+from wsproto.events import BytesMessage, Ping, Request, TextMessage
 from wsproto import WSConnection, ConnectionType
 
 __all__ = ('DiscordConnection',)
 
+
+ZLIB_SUFFIX = b'\x00\x00\xff\xff'
 
 class DiscordConnection:
     """Main class representing a connection to Discord.
@@ -49,9 +57,26 @@ class DiscordConnection:
         """
         self._proto = WSConnection(ConnectionType.CLIENT)
 
+        if uri.endswith('/'):
+            uri = uri[:-1]
+
         self.uri = uri
         self.encoding = encoding
         self.compress = compress
+
+        # State and memory having to do with the WebSocket
+        self.sequence = None
+        self._events = deque()  # Buffer of events received
+        self.buffer = bytearray()
+        self.inflator = zlib.decompressobj()
+
+    @property
+    def query_params(self) -> str:
+        """Query parameters to add to the URL depending on values chosen."""
+        quote = {'v': 9, 'encoding': self.encoding}
+        if self.compress == 'zlib-stream':
+            quote['compress'] = self.compress
+        return urlencode(quote)
 
     @property
     def destination(self) -> Tuple[str, int]:
@@ -59,7 +84,108 @@ class DiscordConnection:
 
         The tuple has two items, the host and the port to use.
         """
-        return self.uri, 443  # The gateway uses secure WebSockets (wss)
+        # The gateway uses secure WebSockets (wss) hence port 443
+        return self.uri, 443
+
+    def events(self) -> Generator[Dict[str, Any], None, None]:
+        """Generator that yields events which have been received.
+
+        This will consume an internal deque until no more items can be removed
+        and return. Compared to simply iterating the deque this means that
+        events will be removed as they're retrieved.
+        """
+        while True:
+            try:
+                yield self._events.popleft()
+            except IndexError:
+                # There are no more events to consume
+                return
+
+    def connect(self) -> bytes:
+        """Generate the switching protocols bytes to convert to a WebSocket.
+
+        The next step in the bootstrapping process is to continously receive
+        and send data until an HELLO event and the first HEARTBEAT command
+        has been sent.
+        """
+        return self._proto.send(Request(self.uri, '/?' + self.query_params))
+
+    def heartbeat(self) -> bytes:
+        """Generate a HEARTBEAT command to send."""
+        data = json.dumps({
+            'op': 1,
+            'd': self.sequence
+        })
+        return self._proto.send(TextMessage(data))
+
+    def _handle_event(self, event: Dict[str, Any]) -> Optional[bytes]:
+        """Handle a Discord event and potentially send a response.
+
+        Because there are several ways that data can be received this has been
+        separated into another internal method.
+        """
+        if event['op'] == 1:
+            # Discord has sent a HEARTBEAT and expects an immediate response
+            return self.heartbeat()
+
+    def receive(self, data: bytes) -> Optional[bytes]:
+        """Receive data from the WebSocket.
+
+        This method may return new data to send back, in cases such as PING
+        frames or HEARTBEAT events which require an immediate HEARTBEAT command
+        be sent back to it.
+        """
+        self._proto.receive_data(data)
+
+        for event in self._proto.events():
+            if isinstance(event, Ping):
+                return self._proto.send(event.response())
+
+            elif isinstance(event, TextMessage):
+                # Compressed message will only show up as ByteMessage events,
+                # we can interpret this as a full JSON payload.
+                payload = json.loads(event.data)
+                response = self._handle_event(payload)
+
+                if response:
+                    return response
+                else:
+                    # If there was no response by the _handle_event() call that
+                    # means that this is an event we should hand to the user.
+                    self._events.append(payload)
+
+            elif isinstance(event, BytesMessage):
+                if self.compress == 'zlib-stream':
+                    self.buffer.extend(event.data)
+
+                    if len(event.data) < 4 or event.data[-4:] != ZLIB_SUFFIX:
+                        # It isn't the end of the event and there will be more
+                        # coming
+                        return
+
+                    # The Zlib suffix has been sent and our buffer should be
+                    # full with a complete message
+                    if self.encoding == 'json':
+                        payload = json.loads(self.inflator.decompress(event.data))
+                    else:
+                        payload = erlpack.unpack(self.inflator.decompress(event.data))
+
+                    self.buffer = bytearray()  # Reset our buffer
+
+                elif self.compress is True:
+                    payload = json.loads(zlib.decompress(event.data))
+
+                else:
+                    raise RuntimeError('Received bytes message when no compression specified')
+
+                response = self._handle_event(payload)
+
+                if response:
+                    return response
+                else:
+                    # If there was no response by the _handle_event() call that
+                    # means that this is an event we should hand to the user.
+                    self._events.append(payload)
 data = socket.receive()
 
 conn.receive(data)
