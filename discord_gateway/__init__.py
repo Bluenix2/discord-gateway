@@ -111,8 +111,30 @@ class DiscordConnection:
         """
         return self._proto.send(Request(self.uri, '/?' + self.query_params))
 
-    def heartbeat(self) -> bytes:
-        """Generate a HEARTBEAT command to send."""
+    def heartbeat(self, *, acknowledge: bool = True) -> bytes:
+        """Generate a HEARTBEAT command to send.
+
+        If no HEARTBEAT_ACK event has been received this will automatically
+        start to close the connection which continues in `receive()`. As per
+        the documentation when a HEARTBEAT command hasn't been acknowledged.
+
+        Parameters:
+            acknowledge:
+                Whether this HEARTBEAT should be acknowledged. This parameter
+                is useful for cases like the spontaneous HEARTBEAT events the
+                gateway may send that don't require acknowledgement when
+                responded to as commands.
+        """
+        if acknowledge:
+            if not self.acknowledged:
+                # Our last HEARTBEAT wasn't acknowledged and per the
+                # documentation we should disconnect with a non-1000 close code
+                # and attempt to reconnect with a RESUME. Here the 1008
+                # POLICY VIOLATION error code is used.
+                return self._proto.send(CloseConnection(1008))
+
+            self.acknowledged = False
+
         data = json.dumps({
             'op': 1,
             'd': self.sequence
