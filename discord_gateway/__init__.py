@@ -17,10 +17,24 @@ import erlpack
 from wsproto.events import BytesMessage, Ping, Request, TextMessage
 from wsproto import WSConnection, ConnectionType
 
-__all__ = ('DiscordConnection',)
+__all__ = ('CloseDiscordConnection', 'DiscordConnection')
 
 
 ZLIB_SUFFIX = b'\x00\x00\xff\xff'
+
+
+class CloseDiscordConnection(Exception):
+    """Signalling exception notifying the socket should be closed.
+
+    Contained in this exception is some last bytes to send off before closing
+    the WebSocket.
+    """
+
+    def __init__(self, data: bytes) -> None:
+        super().__init__()
+
+        self.data = data
+
 
 class DiscordConnection:
     """Main class representing a connection to Discord.
@@ -63,6 +77,8 @@ class DiscordConnection:
         self.uri = uri
         self.encoding = encoding
         self.compress = compress
+
+        self.should_resume = False
 
         # State and memory having to do with the WebSocket
         self.sequence = None
@@ -168,6 +184,20 @@ class DiscordConnection:
         for event in self._proto.events():
             if isinstance(event, Ping):
                 res.append(self._proto.send(event.response()))
+
+            elif isinstance(event, RejectConnection):
+                raise RuntimeError(f'Connection was rejected: {event}')
+
+            elif isinstance(event, CloseConnection):
+                # This may or may not have been initiated by us, either way the
+                # best option is to close the websocket and RESUME
+                self.should_resume = True
+
+                # Signal to the user that they should respond and then close
+                # the TCP connection.
+                raise CloseDiscordConnection(
+                    self._proto.send(event.response())
+                )
 
             elif isinstance(event, TextMessage):
                 # Compressed message will only show up as ByteMessage events,
