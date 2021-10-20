@@ -212,6 +212,4 @@ class DiscordConnection:
                     # If there was no response by the _handle_event() call that
                     # means that this is an event we should hand to the user.
                     self._events.append(payload)
-data = socket.receive()
 
-conn.receive(data)
