@@ -69,6 +69,7 @@ class DiscordConnection:
         self._events = deque()  # Buffer of events received
         self.buffer = bytearray()
         self.inflator = zlib.decompressobj()
+        self.acknowledged = True
 
     @property
     def query_params(self) -> str:
@@ -126,7 +127,10 @@ class DiscordConnection:
         """
         if event['op'] == 1:
             # Discord has sent a HEARTBEAT and expects an immediate response
-            return self.heartbeat()
+            return self.heartbeat(acknowledge=False)
+        elif event['op'] == 11:
+            # Acknowlegment of our heartbeat
+            self.acknowledged = True
 
     def receive(self, data: bytes) -> Optional[bytes]:
         """Receive data from the WebSocket.
