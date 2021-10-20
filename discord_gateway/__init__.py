@@ -10,8 +10,8 @@ threading fashion or asyncio/trio/curio.
 import json
 import zlib
 from collections import deque
+from typing import Any, Dict, Generator, List, Literal, Optional, Tuple
 from urllib.parse import urlencode
-from typing import Generator, Literal, Optional, Tuple, Dict, Any
 
 import erlpack
 from wsproto.events import BytesMessage, Ping, Request, TextMessage
@@ -154,7 +154,7 @@ class DiscordConnection:
             # Acknowlegment of our heartbeat
             self.acknowledged = True
 
-    def receive(self, data: bytes) -> Optional[bytes]:
+    def receive(self, data: bytes) -> List[bytes]:
         """Receive data from the WebSocket.
 
         This method may return new data to send back, in cases such as PING
@@ -163,9 +163,11 @@ class DiscordConnection:
         """
         self._proto.receive_data(data)
 
+        res = []
+
         for event in self._proto.events():
             if isinstance(event, Ping):
-                return self._proto.send(event.response())
+                res.append(self._proto.send(event.response()))
 
             elif isinstance(event, TextMessage):
                 # Compressed message will only show up as ByteMessage events,
@@ -174,7 +176,7 @@ class DiscordConnection:
                 response = self._handle_event(payload)
 
                 if response:
-                    return response
+                    res.append(response)
                 else:
                     # If there was no response by the _handle_event() call that
                     # means that this is an event we should hand to the user.
@@ -187,7 +189,7 @@ class DiscordConnection:
                     if len(event.data) < 4 or event.data[-4:] != ZLIB_SUFFIX:
                         # It isn't the end of the event and there will be more
                         # coming
-                        return
+                        continue
 
                     # The Zlib suffix has been sent and our buffer should be
                     # full with a complete message
@@ -207,9 +209,10 @@ class DiscordConnection:
                 response = self._handle_event(payload)
 
                 if response:
-                    return response
+                    res.append(response)
                 else:
                     # If there was no response by the _handle_event() call that
                     # means that this is an event we should hand to the user.
                     self._events.append(payload)
 
+        return res
