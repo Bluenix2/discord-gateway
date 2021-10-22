@@ -90,6 +90,9 @@ class DiscordConnection:
         if uri.endswith('/'):
             uri = uri[:-1]
 
+        if uri.startswith('wss://'):
+            uri = uri[6:]
+
         self.uri = uri
         self.encoding = encoding
         self.compress = compress
