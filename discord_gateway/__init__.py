@@ -53,6 +53,17 @@ class CloseDiscordConnection(Exception):
         self.data = data
 
 
+class ConnectionRejected(Exception):
+    """Exception raised when the connection to Discord was rejected."""
+
+    def __init__(self, event: RejectConnection) -> None:
+        super().__init__(
+            f'Discord rejected the WebSocket connection - Error code {event.status_code}'
+        )
+
+        self.code = event.status_code
+        self.headers = event.headers
+
 class DiscordConnection:
     """Main class representing a connection to Discord.
 
@@ -219,7 +230,7 @@ class DiscordConnection:
                 res.append(self._proto.send(event.response()))
 
             elif isinstance(event, RejectConnection):
-                raise RuntimeError(f'Connection was rejected: {event}')
+                raise ConnectionRejected(event)
 
             elif isinstance(event, CloseConnection):
                 # This may or may not have been initiated by us, either way the
