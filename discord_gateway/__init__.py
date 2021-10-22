@@ -14,20 +14,24 @@ from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
 from wsproto.events import (
-    BytesMessage, CloseConnection, Event, Ping, RejectConnection, Request, TextMessage
+    BytesMessage, CloseConnection, Event, Ping, RejectConnection, RejectData,
+    Request, TextMessage
 )
 
 try:
-    from erlpack import pack as etf_pack, unpack as etf_unpack
+    from erlpack import pack as etf_pack
+    from erlpack import unpack as etf_unpack
     ERLPACK_AVAILABLE = True
 except ImportError:
     # There is no fallback, we raise an exception later on.
     ERLPACK_AVAILABLE = False
 
 try:
-    from ujson import loads as json_loads, dumps as json_dumps
+    from ujson import dumps as json_dumps
+    from ujson import loads as json_loads
 except ImportError:
-    from json import loads as json_loads, dumps as json_dumps
+    from json import dumps as json_dumps
+    from json import loads as json_loads
 
 
 __all__ = ('CloseDiscordConnection', 'DiscordConnection')
