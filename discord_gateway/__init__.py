@@ -7,15 +7,28 @@ It means that this implementation can be reused for libraries implemented in a
 threading fashion or asyncio/trio/curio.
 """
 
-import json
 import zlib
 from collections import deque
 from typing import Any, Dict, Generator, List, Literal, Optional, Tuple
 from urllib.parse import urlencode
 
-import erlpack
-from wsproto.events import BytesMessage, Ping, Request, TextMessage
-from wsproto import WSConnection, ConnectionType
+from wsproto import ConnectionType, WSConnection
+from wsproto.events import (
+    BytesMessage, CloseConnection, Event, Ping, RejectConnection, Request, TextMessage
+)
+
+try:
+    from erlpack import pack as etf_pack, unpack as etf_unpack
+    ERLPACK_AVAILABLE = True
+except ImportError:
+    # There is no fallback, we raise an exception later on.
+    ERLPACK_AVAILABLE = False
+
+try:
+    from ujson import loads as json_loads, dumps as json_dumps
+except ImportError:
+    from json import loads as json_loads, dumps as json_dumps
+
 
 __all__ = ('CloseDiscordConnection', 'DiscordConnection')
 
@@ -69,6 +82,9 @@ class DiscordConnection:
                 compression and both cannot be used at the same time. Payload
                 compression is specified when IDENTIFYing.
         """
+        if encoding == 'etf' and not ERLPACK_AVAILABLE:
+            raise ValueError("ETF encoding not available without 'erlpack' installed")
+
         self._proto = WSConnection(ConnectionType.CLIENT)
 
         if uri.endswith('/'):
@@ -103,6 +119,17 @@ class DiscordConnection:
         """
         # The gateway uses secure WebSockets (wss) hence port 443
         return self.uri, 443
+
+    def _encode(self, payload: Any) -> Event:
+        """Prepare a payload to be sent to the gateway.
+
+        This method will encode the payload in the configured encoding.
+        """
+        if self.encoding == 'json':
+            return TextMessage(json_dumps(payload))
+        else:
+            # The encoding is ETF because these are only two cases
+            return BytesMessage(etf_pack(payload))
 
     def events(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields events which have been received.
@@ -151,11 +178,10 @@ class DiscordConnection:
 
             self.acknowledged = False
 
-        data = json.dumps({
+        return self._proto.send(self._encode({
             'op': 1,
-            'd': self.sequence
-        })
-        return self._proto.send(TextMessage(data))
+            'd': self.sequence,
+        }))
 
     def _handle_event(self, event: Dict[str, Any]) -> Optional[bytes]:
         """Handle a Discord event and potentially send a response.
@@ -202,7 +228,7 @@ class DiscordConnection:
             elif isinstance(event, TextMessage):
                 # Compressed message will only show up as ByteMessage events,
                 # we can interpret this as a full JSON payload.
-                payload = json.loads(event.data)
+                payload = json_loads(event.data)
                 response = self._handle_event(payload)
 
                 if response:
@@ -224,14 +250,17 @@ class DiscordConnection:
                     # The Zlib suffix has been sent and our buffer should be
                     # full with a complete message
                     if self.encoding == 'json':
-                        payload = json.loads(self.inflator.decompress(event.data))
+                        payload = json_loads(self.inflator.decompress(event.data))
                     else:
-                        payload = erlpack.unpack(self.inflator.decompress(event.data))
+                        payload = etf_unpack(self.inflator.decompress(event.data))
 
                     self.buffer = bytearray()  # Reset our buffer
 
                 elif self.compress is True:
-                    payload = json.loads(zlib.decompress(event.data))
+                    payload = json_loads(zlib.decompress(event.data))
+
+                elif self.encoding == 'etf':
+                    payload = etf_unpack(event.data)
 
                 else:
                     raise RuntimeError('Received bytes message when no compression specified')
