@@ -85,11 +85,13 @@ class DiscordConnection:
         self.should_resume = False
 
         # State and memory having to do with the WebSocket
+        self.session_id = None
         self.sequence = None
-        self._events = deque()  # Buffer of events received
-        self.buffer = bytearray()
-        self.inflator = zlib.decompressobj()
         self.acknowledged = True
+
+        self._events = deque()  # Buffer of events received
+        self._buffer = bytearray()
+        self._inflator = zlib.decompressobj()
 
     @property
     def query_params(self) -> str:
@@ -127,7 +129,7 @@ class DiscordConnection:
         """
         self._proto = WSConnection(ConnectionType.CLIENT)
 
-        self.inflator = zlib.decompressobj()
+        self._inflator = zlib.decompressobj()
         self._events = deque()
         self.acknowledged = True
 
@@ -240,7 +242,7 @@ class DiscordConnection:
 
             elif isinstance(event, BytesMessage):
                 if self.compress == 'zlib-stream':
-                    self.buffer.extend(event.data)
+                    self._buffer.extend(event.data)
 
                     if len(event.data) < 4 or event.data[-4:] != ZLIB_SUFFIX:
                         # It isn't the end of the event and there will be more
@@ -250,9 +252,9 @@ class DiscordConnection:
                     # The Zlib suffix has been sent and our buffer should be
                     # full with a complete message
                     if self.encoding == 'json':
-                        payload = json_loads(self.inflator.decompress(event.data))
+                        payload = json_loads(self._inflator.decompress(event.data))
                     else:
-                        payload = etf_unpack(self.inflator.decompress(event.data))
+                        payload = etf_unpack(self._inflator.decompress(event.data))
 
                     self.buffer = bytearray()  # Reset our buffer
 
