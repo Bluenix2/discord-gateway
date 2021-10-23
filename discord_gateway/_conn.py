@@ -118,6 +118,18 @@ class DiscordConnection:
             # The encoding is ETF because these are only two cases
             return BytesMessage(etf_pack(payload))
 
+    def reconnect(self) -> None:
+        """Reinitialize the connection.
+
+        This is called when the WebSocket is reconnected to reset the internal
+        state of this connection object.
+        """
+        self._proto = WSConnection(ConnectionType.CLIENT)
+
+        self.inflator = zlib.decompressobj()
+        self._events = deque()
+        self.acknowledged = True
+
     def events(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields events which have been received.
 
