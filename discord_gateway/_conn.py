@@ -1,6 +1,6 @@
 import zlib
 from collections import deque
-from typing import Any, Dict, Generator, List, Literal, Optional, Tuple
+from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, overload
 from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
@@ -10,6 +10,7 @@ from wsproto.events import (
 )
 
 from ._errors import CloseDiscordConnection, ConnectionRejected
+from ._opcode import Opcode
 
 try:
     from erlpack import pack as etf_pack
