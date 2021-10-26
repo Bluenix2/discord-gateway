@@ -185,18 +185,28 @@ class DiscordConnection:
             'd': self.sequence,
         }))
 
-    def _handle_event(self, event: Dict[str, Any]) -> Optional[bytes]:
+    def _handle_event(self, event: Dict[str, Any]) -> Tuple[bool, Optional[bytes]]:
         """Handle a Discord event and potentially send a response.
 
         Because there are several ways that data can be received this has been
-        separated into another internal method.
+        separated into another internal method. It returns a tuple, the first
+        item is a bool whether the event should be returned to the user and the
+        second item is a potential response in bytes.
         """
-        if event['op'] == 1:
+        if event['op'] == Opcode.HEARTBEAT:
             # Discord has sent a HEARTBEAT and expects an immediate response
-            return self.heartbeat(acknowledge=False)
-        elif event['op'] == 11:
+            return False, self.heartbeat(acknowledge=False)
+
+        elif event['op'] == Opcode.HEARTBEAT_ACK:
             # Acknowlegment of our heartbeat
             self.acknowledged = True
+            return False, None
+
+        elif event['op'] == Opcode.HELLO:
+            self.heartbeat_interval = event['d']['heartbeat_interval']
+            return True, None
+
+        return True, None
 
     def receive(self, data: bytes) -> List[bytes]:
         """Receive data from the WebSocket.
@@ -267,13 +277,12 @@ class DiscordConnection:
                 else:
                     raise RuntimeError('Received bytes message when no compression specified')
 
-                response = self._handle_event(payload)
+                dispatch, response = self._handle_event(payload)
 
-                if response:
+                if response is not None:
                     res.append(response)
-                else:
-                    # If there was no response by the _handle_event() call that
-                    # means that this is an event we should hand to the user.
+
+                if dispatch:
                     self._events.append(payload)
 
         return res
