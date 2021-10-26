@@ -82,7 +82,7 @@ class DiscordConnection:
         self.encoding = encoding
         self.compress = compress
 
-        self.should_resume = False
+        self.should_resume = None
 
         # State and memory having to do with the WebSocket
         self.session_id = None
@@ -128,6 +128,7 @@ class DiscordConnection:
         This is called when the WebSocket is reconnected to reset the internal
         state of this connection object.
         """
+        self.should_resume = None
         self._proto = WSConnection(ConnectionType.CLIENT)
 
         self._inflator = zlib.decompressobj()
@@ -207,6 +208,24 @@ class DiscordConnection:
             self.heartbeat_interval = event['d']['heartbeat_interval']
             return True, None
 
+        elif event['op'] == Opcode.RECONNECT:
+            # Discord wants us to reconnect and resume, because of how the
+            # WebSocket protocol works the server will respond with a
+            # CloseConnection message and we raise the CloseDiscordConnection
+            # exception there.
+            self.should_resume = True
+            # There really isn't a completely fitting error code here
+            return False, self._proto.send(CloseConnection(1008))
+
+        elif event['op'] == Opcode.INVALID_SESSION:
+            # This is documented to be sent if:
+            # - The gateway could not initialize a session from an IDENTIFY
+            # - The gateway could not resume a session
+            # - The gateway has invalidated an active session
+            # The 'd' key indicates whether we should resume
+            self.should_resume = event['d']
+            return False, self._proto.send(CloseConnection(1008))
+
         return True, None
 
     def receive(self, data: bytes) -> List[bytes]:
@@ -230,7 +249,9 @@ class DiscordConnection:
             elif isinstance(event, CloseConnection):
                 # This may or may not have been initiated by us, either way the
                 # best option is to close the websocket and RESUME
-                self.should_resume = True
+                if self.should_resume is None:
+                    # This wasn't initiated by us, the best bet is to RESUME
+                    self.should_resume = True
 
                 # Signal to the user that they should respond and then close
                 # the TCP connection.
