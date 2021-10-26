@@ -88,6 +88,7 @@ class DiscordConnection:
         self.session_id = None
         self.sequence = None
         self.acknowledged = True
+        self.heartbeat_interval: Optional[int] = None
 
         self._events = deque()  # Buffer of events received
         self._buffer = bytearray()
