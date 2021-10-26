@@ -9,3 +9,4 @@ threading fashion or asyncio/trio/curio.
 
 from ._conn import *
 from ._errors import *
+from ._opcode import *
