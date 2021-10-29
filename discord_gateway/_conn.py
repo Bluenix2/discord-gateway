@@ -4,6 +4,7 @@ from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, overloa
 from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
+from wsproto.connection import ConnectionState
 from wsproto.events import (
     BytesMessage, CloseConnection, Event, Ping, RejectConnection, Request,
     TextMessage
@@ -254,11 +255,14 @@ class DiscordConnection:
                     # This wasn't initiated by us, the best bet is to RESUME
                     self.should_resume = True
 
-                # Signal to the user that they should respond and then close
-                # the TCP connection.
-                raise CloseDiscordConnection(
-                    self._proto.send(event.response())
-                )
+                if self._proto.state == ConnectionState.CLOSED:
+                    # We initiated the closing and have now received a reply,
+                    # WSProto yields a CloseConnection to the initiatior (us)
+                    raise CloseDiscordConnection(None)
+                else:
+                    # It should be ConnectionState.REMOTE_CLOSING and we need
+                    # to reply to the closure
+                    raise CloseDiscordConnection(self._proto.send(event.response()))
 
             elif isinstance(event, TextMessage):
                 # Compressed message will only show up as ByteMessage events,
