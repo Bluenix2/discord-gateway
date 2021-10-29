@@ -229,7 +229,7 @@ class DiscordConnection:
 
         return True, None
 
-    def receive(self, data: bytes) -> List[bytes]:
+    def receive(self, data: Optional[bytes]) -> List[bytes]:
         """Receive data from the WebSocket.
 
         This method may return new data to send back, in cases such as PING
