@@ -245,6 +245,7 @@ class DiscordConnection:
         for event in self._proto.events():
             if isinstance(event, Ping):
                 res.append(self._proto.send(event.response()))
+                continue
 
             elif isinstance(event, RejectConnection):
                 raise ConnectionRejected(event)
@@ -269,14 +270,6 @@ class DiscordConnection:
                 # Compressed message will only show up as ByteMessage events,
                 # we can interpret this as a full JSON payload.
                 payload = json_loads(event.data)
-                response = self._handle_event(payload)
-
-                if response:
-                    res.append(response)
-                else:
-                    # If there was no response by the _handle_event() call that
-                    # means that this is an event we should hand to the user.
-                    self._events.append(payload)
 
             elif isinstance(event, BytesMessage):
                 if self.compress == 'zlib-stream':
@@ -304,14 +297,18 @@ class DiscordConnection:
 
                 else:
                     raise RuntimeError('Received bytes message when no compression specified')
+            else:
+                # The code below is shared for TextMessage and BytesMessage but
+                # any other event we have received shouldn't cause this to run.
+                continue
 
-                dispatch, response = self._handle_event(payload)
+            dispatch, response = self._handle_event(payload)
 
-                if response is not None:
-                    res.append(response)
+            if dispatch:
+                self._events.append(payload)
 
-                if dispatch:
-                    self._events.append(payload)
+            if response is not None:
+                res.append(response)
 
         return res
 
