@@ -315,8 +315,8 @@ class DiscordConnection:
     def identify(
         self,
         *,
-        token: str,
-        intents: int,
+        token: Optional[str],
+        intents: Optional[int],
         properties: Dict[str, Any],
         compress: bool = False,
         large_treshold: int = 50,
@@ -331,8 +331,8 @@ class DiscordConnection:
         self.token = token
 
         data = {
-            'token': token,
-            'intents': intents,
+            'token': token or self.token,
+            'intents': intents or self.intents,
             'properties': properties
         }
 
