@@ -211,6 +211,10 @@ class DiscordConnection:
             self.heartbeat_interval = event['d']['heartbeat_interval'] / 1000
             return True, None
 
+        elif event['op'] == Opcode.DISPATCH and event['t'] == 'READY':
+            self.session_id = event['d']['session_id']
+            return True, None
+
         elif event['op'] == Opcode.RECONNECT:
             # Discord wants us to reconnect and resume, because of how the
             # WebSocket protocol works the server will respond with a
