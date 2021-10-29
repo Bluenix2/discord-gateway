@@ -70,8 +70,6 @@ class DiscordConnection:
         if encoding == 'etf' and not ERLPACK_AVAILABLE:
             raise ValueError("ETF encoding not available without 'erlpack' installed")
 
-        self._proto = WSConnection(ConnectionType.CLIENT)
-
         if uri.endswith('/'):
             uri = uri[:-1]
 
@@ -82,17 +80,13 @@ class DiscordConnection:
         self.encoding = encoding
         self.compress = compress
 
-        self.should_resume = None
-
-        # State and memory having to do with the WebSocket
         self.session_id = None
         self.sequence = None
-        self.acknowledged = True
-        self.heartbeat_interval: Optional[int] = None
+        self.token = None
+        self.intents = None
 
-        self._events = deque()  # Buffer of events received
-        self._buffer = bytearray()
-        self._inflator = zlib.decompressobj()
+        # This will initialize the rest of the attributes
+        self.reconnect()
 
     @property
     def query_params(self) -> str:
@@ -131,9 +125,12 @@ class DiscordConnection:
         self.should_resume = None
         self._proto = WSConnection(ConnectionType.CLIENT)
 
-        self._inflator = zlib.decompressobj()
-        self._events = deque()
         self.acknowledged = True
+        self.heartbeat_interval: Optional[int] = None
+
+        self._events = deque()  # Buffer of events received
+        self._buffer = bytearray()
+        self._inflator = zlib.decompressobj()
 
     def events(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields events which have been received.
