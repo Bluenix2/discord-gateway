@@ -207,7 +207,8 @@ class DiscordConnection:
             return False, None
 
         elif event['op'] == Opcode.HELLO:
-            self.heartbeat_interval = event['d']['heartbeat_interval']
+            # Discord sends the interval in milliseconds
+            self.heartbeat_interval = event['d']['heartbeat_interval'] / 1000
             return True, None
 
         elif event['op'] == Opcode.RECONNECT:
