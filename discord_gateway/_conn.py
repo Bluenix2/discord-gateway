@@ -175,6 +175,7 @@ class DiscordConnection:
                 # documentation we should disconnect with a non-1000 close code
                 # and attempt to reconnect with a RESUME. Here the 1008
                 # POLICY VIOLATION error code is used.
+                self.should_resume = True
                 return self._proto.send(CloseConnection(1008))
 
             self.acknowledged = False
@@ -192,6 +193,9 @@ class DiscordConnection:
         item is a bool whether the event should be returned to the user and the
         second item is a potential response in bytes.
         """
+        if event.get('s') is not None:
+            self.sequence = event['s']
+
         if event['op'] == Opcode.HEARTBEAT:
             # Discord has sent a HEARTBEAT and expects an immediate response
             return False, self.heartbeat(acknowledge=False)
