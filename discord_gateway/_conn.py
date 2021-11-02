@@ -83,8 +83,6 @@ class DiscordConnection:
 
         self.session_id = None
         self.sequence = None
-        self.token = None
-        self.intents = None
 
         # This will initialize the rest of the attributes
         self.reconnect()
@@ -319,8 +317,8 @@ class DiscordConnection:
     def identify(
         self,
         *,
-        token: Optional[str],
-        intents: Optional[int],
+        token: str,
+        intents: int,
         properties: Dict[str, Any],
         compress: bool = False,
         large_treshold: int = 50,
@@ -332,11 +330,10 @@ class DiscordConnection:
         There is a ratelimit on how many times you can IDENTIFY, it is up to
         you to handle this.
         """
-        self.token = token
 
         data = {
-            'token': token or self.token,
-            'intents': intents or self.intents,
+            'token': token,
+            'intents': intents,
             'properties': properties
         }
 
@@ -357,54 +354,17 @@ class DiscordConnection:
             'd': data
         }))
 
-    @overload
-    def resume(self) -> bytes:
-        ...
-
-    @overload
-    def resume(
-        self,
-        *,
-        token: str,
-        session_id: str,
-        sequence: int
-    ) -> bytes:
-        ...
-
-    def resume(
-        self,
-        *,
-        token: Optional[str] = None,
-        session_id: Optional[str] = None,
-        sequence: Optional[int] = None
-    ) -> bytes:
+    def resume(self, token: str) -> bytes:
         """Generate a RESUME command from the current state.
 
         It is possible to RESUME a connection unknown to this instance, for
         that all kwargs are required.
         """
-        # We want to make sure we don't send a bad payload that Discord will
-        # complain about
-
-        if token is None and self.token is None:
-            raise TypeError("'token' is a required argument when self.token is None")
-        else:
-            self.token = token
-
-        if session_id is None and self.session_id is None:
-            raise TypeError("'session_id' is a required argument when self.session_id is None")
-        else:
-            self.session_id = session_id
-
-        if sequence is None and self.sequence is None:
-            raise TypeError("'sequence' is a required argument when self.sequence is None")
-        else:
-            self.sequence = sequence
 
         return self._proto.send(self._encode({
             'op': Opcode.RESUME,
             'd': {
-                'token': self.token,
+                'token': token,
                 'session_id': self.session_id,
                 'seq': self.sequence
             },
