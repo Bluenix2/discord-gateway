@@ -160,6 +160,9 @@ class DiscordConnection:
         """
         return self._proto.send(Request(self.uri, '/?' + self.query_params))
 
+    def close(self, code: int = 1001) -> bytes:
+        return self._proto.send(CloseConnection(code))
+
     def heartbeat(self, *, acknowledge: bool = True) -> bytes:
         """Generate a HEARTBEAT command to send.
 
