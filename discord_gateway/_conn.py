@@ -123,7 +123,12 @@ class DiscordConnection:
         This is called when the WebSocket is reconnected to reset the internal
         state of this connection object.
         """
-        self.should_resume = None
+        # This method is called when the user is reconnecting using another TCP
+        # socket, we don't want to override the bool that may have been set
+        # when closing.
+        if getattr(self, 'should_resume', None) is None:
+            self.should_resume = None
+
         self._proto = WSConnection(ConnectionType.CLIENT)
 
         self.acknowledged = True
@@ -331,6 +336,7 @@ class DiscordConnection:
         There is a ratelimit on how many times you can IDENTIFY, it is up to
         you to handle this.
         """
+        self.should_resume = None  # Reset the state for the next reconnection
 
         data = {
             'token': token,
@@ -361,6 +367,7 @@ class DiscordConnection:
         It is possible to RESUME a connection unknown to this instance, for
         that all kwargs are required.
         """
+        self.should_resume = None
 
         return self._proto.send(self._encode({
             'op': Opcode.RESUME,
