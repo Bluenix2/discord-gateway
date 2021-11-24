@@ -10,8 +10,8 @@ from wsproto.events import (
     TextMessage
 )
 
-from ._errors import CloseDiscordConnection, ConnectionRejected
-from ._opcode import Opcode
+from .errors import CloseDiscordConnection, ConnectionRejected
+from .opcode import Opcode
 
 try:
     from erlpack import pack as etf_pack
