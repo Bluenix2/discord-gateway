@@ -1,6 +1,6 @@
 import zlib
 from collections import deque
-from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, overload
+from typing import Any, Dict, Generator, List, Optional, Tuple
 from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
@@ -46,8 +46,8 @@ class DiscordConnection:
         self,
         uri: str,
         *,
-        encoding: Literal['json', 'etf'],
-        compress: Optional[Literal['zlib-stream']] = None
+        encoding: str,
+        compress: Optional[str] = None
     ) -> None:
         """Initialize a Discord Connection.
 
@@ -62,11 +62,12 @@ class DiscordConnection:
                 Encoding to use, either JSON or binary ETF. If using ETF the
                 client cannot send compressed messages to the server.
                 Snowflakes are also transmitted as 64-bit integers as opposed
-                to strings.
+                to strings. Either 'json' for JSON, or 'etf' for binary ETF.
             compress:
                 Transport compression to use, this is different from payload
                 compression and both cannot be used at the same time. Payload
-                compression is specified when IDENTIFYing.
+                compression is specified when IDENTIFYing. Specify
+                'zlib-stream' for transport compression.
         """
         if encoding == 'etf' and not ERLPACK_AVAILABLE:
             raise ValueError("ETF encoding not available without 'erlpack' installed")
