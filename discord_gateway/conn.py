@@ -141,6 +141,7 @@ class DiscordConnection:
         self.heartbeat_interval: Optional[int] = None
 
         self._buffer = bytearray()
+        self._text_buffer = ''
         self._inflator = zlib.decompressobj()
 
     def events(self) -> Generator[Dict[str, Any], None, None]:
@@ -315,7 +316,13 @@ class DiscordConnection:
             elif isinstance(event, TextMessage):
                 # Compressed message will only show up as ByteMessage events,
                 # we can interpret this as a full JSON payload.
-                payload = json_loads(event.data)
+                self._text_buffer += event.data
+
+                if not event.message_finished:
+                    continue
+
+                payload = json_loads(self._text_buffer)
+                self._text_buffer = ''
 
             elif isinstance(event, BytesMessage):
                 if self.compress == 'zlib-stream':
