@@ -8,8 +8,8 @@ __all__ = ('CloseDiscordConnection', 'ConnectionRejected')
 class CloseDiscordConnection(Exception):
     """Signalling exception notifying the socket should be closed.
 
-    Contained in this exception is some last bytes to send off before closing
-    the WebSocket.
+    The `data` attribute contains any potentially last bytes to send before
+    closing the TCP socket - or None indicating that nothing should be sent.
     """
 
     def __init__(self, data: Optional[bytes]) -> None:
@@ -19,7 +19,12 @@ class CloseDiscordConnection(Exception):
 
 
 class ConnectionRejected(Exception):
-    """Exception raised when the connection to Discord was rejected."""
+    """Exception raised when the connection to Discord was rejected.
+
+    This means that Discord rejected the WebSocket upgrade request. This is a
+    fatal exception which cannot be recovered from (at least from
+    discord-gateway's point of view) depending on the status code.
+    """
 
     def __init__(self, event: RejectConnection) -> None:
         super().__init__(

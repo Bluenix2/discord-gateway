@@ -59,7 +59,7 @@ class DiscordConnection:
                 URI to open a websocket to. This should be requested from the
                 Get Gateway or Get Gateway Bot endpoints.
             encoding:
-                Encoding to use, either JSON or binrary ETF. If using ETF the
+                Encoding to use, either JSON or binary ETF. If using ETF the
                 client cannot send compressed messages to the server.
                 Snowflakes are also transmitted as 64-bit integers as opposed
                 to strings.
@@ -101,7 +101,8 @@ class DiscordConnection:
     def destination(self) -> Tuple[str, int]:
         """Generate a destination to connect to in the form of a tuple.
 
-        The tuple has two items, the host and the port to use.
+        The tuple has two items representing the host and port to open a TCP
+        socket to.
         """
         # The gateway uses secure WebSockets (wss) hence port 443
         return self.uri, 443
@@ -109,7 +110,8 @@ class DiscordConnection:
     def _encode(self, payload: Any) -> Event:
         """Prepare a payload to be sent to the gateway.
 
-        This method will encode the payload in the configured encoding.
+        This method will encode the payload in the configured encoding - either
+        a JSON TextMessage Frame or ETF BytesMessage frame.
         """
         if self.encoding == 'json':
             return TextMessage(json_dumps(payload))
@@ -120,8 +122,11 @@ class DiscordConnection:
     def reconnect(self) -> None:
         """Reinitialize the connection.
 
-        This is called when the WebSocket is reconnected to reset the internal
-        state of this connection object.
+        This should be called when the TCP socket is re-established and will
+        reset the internal state of the WebSocket to handle a new connection.
+
+        The only thing not reset is the `should_resume` attribute which is
+        set when disconnecting.
         """
         # This method is called when the user is reconnecting using another TCP
         # socket, we don't want to override the bool that may have been set
@@ -140,9 +145,12 @@ class DiscordConnection:
     def events(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields events which have been received.
 
+        In general it is recommended to call this in a for-loop anytime data
+        has been received as to handle whatever was received.
+
         This will consume an internal deque until no more items can be removed
-        and return. Compared to simply iterating the deque this means that
-        events will be removed as they're retrieved.
+        and return, meaning that events are removed when retrieved so that no
+        duplicates appear.
         """
         while True:
             try:
@@ -161,6 +169,18 @@ class DiscordConnection:
         return self._proto.send(Request(self.uri, '/?' + self.query_params))
 
     def close(self, code: int = 1001) -> bytes:
+        """Generate the bytes to send a closing frame to the WebSocket.
+
+        After having sent this you should continue receiving bytes and calling
+        `receive()` until `CloseDiscordConnection` is raised at which point the
+        TCP socket should be closed.
+
+        Parameters:
+            code:
+                The reasoning of closing the WebSocket as close code. Both 1000
+                and 1001 (default) close the session which means when
+                reconnecting a new session has to be created using an IDENTIFY.
+        """
         return self._proto.send(CloseConnection(code))
 
     def heartbeat(self, *, acknowledge: bool = True) -> bytes:
@@ -248,7 +268,21 @@ class DiscordConnection:
         This method may return new data to send back, in cases such as PING
         frames or HEARTBEAT events which require an immediate HEARTBEAT command
         be sent back to it.
+
+        Parameters:
+            data: The bytes received from the TCP socket.
+
+        Raises:
+            RuntimeError: Compressed event received with no compression.
+
+        Returns:
+            A list of bytes to respond back with. See `events()` for how to
+            get the events received.
         """
+        # WSProto uses None instead of an empty byte string.
+        if data is not None and len(data) == 0:
+            data = None
+
         self._proto.receive_data(data)
 
         res = []
@@ -336,8 +370,20 @@ class DiscordConnection:
     ) -> bytes:
         """Generate an initial IDENTIFY payload.
 
-        There is a ratelimit on how many times you can IDENTIFY, it is up to
-        you to handle this.
+        Consider using `resume()` if possible, there is a ratelimit on how
+        often you can IDENTIFY.
+
+        Parameters:
+            token: The Discord authorization token to IDENTIFY with.
+            itents: Intents indicating what events will be received.
+            properties: Properties about the connection.
+            compress: Whether to use payload compression.
+            large_threshold: How big a guild has to be to be considered large.
+            shard: A two-integer tuple specifying the shard ID.
+            presence: Initial presence information to start with.
+
+        Returns:
+            The bytes returned should be directly sent to the TCP socket.
         """
         self.should_resume = None  # Reset the state for the next reconnection
 
@@ -347,8 +393,9 @@ class DiscordConnection:
             'properties': properties
         }
 
-        if compress:
+        if compress is not None:
             data['compress'] = compress
+            self.compress = compress
 
         if large_treshold is not None:
             data['large_treshold'] = large_treshold
@@ -367,8 +414,11 @@ class DiscordConnection:
     def resume(self, token: str) -> bytes:
         """Generate a RESUME command from the current state.
 
-        It is possible to RESUME a connection unknown to this instance, for
-        that all kwargs are required.
+        Parameters:
+            token: The Discord authorization token to RESUME with.
+
+        Returns:
+            The bytes to send to the TCP socket.
         """
         self.should_resume = None
 
