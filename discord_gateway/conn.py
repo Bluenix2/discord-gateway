@@ -1,6 +1,6 @@
 import zlib
 from collections import deque
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
@@ -40,14 +40,36 @@ class DiscordConnection:
 
     This wraps a `wsproto.WSConnection` object to provide an sans-I/O
     implementation that should be wrapped with a network layer.
+
+    Attributes:
+        uri: The URI that was configured to connect to.
+        encoding: Either 'json' or 'etf' for the encoding used.
+        compress:
+            If a boolean, indicates whether to use payload compression. On the
+            other hand, if a string indicates the transport compression to use
+            (can only be 'zlib-stream' at the moment).
+        session_id: The session ID from Discord.
+        sequence: Current sequence of events, used when resuming.
+        acknowledged: Whether the last heartbeat was acknowledged.
+        heartbeat_interval: Amount of seconds to sleep between heartbeats.
     """
+
+    uri: str
+    encoding: str
+    compress: Union[str, bool]
+
+    session_id: Optional[str]
+    sequence: Optional[int]
+
+    acknowledged: bool
+    heartbeat_interval: Optional[float]
 
     def __init__(
         self,
         uri: str,
         *,
         encoding: str,
-        compress: Optional[str] = None
+        compress: Union[str, bool] = False
     ) -> None:
         """Initialize a Discord Connection.
 
@@ -138,7 +160,7 @@ class DiscordConnection:
         self._proto = WSConnection(ConnectionType.CLIENT)
 
         self.acknowledged = True
-        self.heartbeat_interval: Optional[int] = None
+        self.heartbeat_interval = None
 
         self._buffer = bytearray()
         self._text_buffer = ''
