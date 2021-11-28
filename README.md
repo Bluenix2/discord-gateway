@@ -25,9 +25,10 @@ import socket
 import ssl
 import threading
 import time
+from sys import platform
 
 import certifi
-from discord_gateway import DiscordConnection, ConnectionRejected
+from discord_gateway import DiscordConnection
 
 
 TOKEN = 'ABC123.XYZ789'
@@ -71,7 +72,7 @@ def main():
             token=TOKEN,
             intents=65535,
             properties={
-                '$os': 'win32',
+                '$os': platform,
                 '$browser': 'discord-gateway',
                 '$device': 'discord-gateway'
             },
