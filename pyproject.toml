@@ -2,7 +2,7 @@
 name = "discord-gateway"
 version = "0.0.1"
 description = "Sans-I/O implementation of the Discord gateway"
-readme = "README.md"
+readme = {file = "README.md"}
 requires-python = ">=3.6.2"
 license = {file = "LICENSE"}
 authors = [{name = "Bluenix", email = "bluenixdev@gmail.com"}]
@@ -29,6 +29,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
+
+dependencies = ["wsproto >= 1.0.0, <2"]
 
 [project.urls]
 homepage = "https://github.com/Bluenix2/discord-gateway/"
