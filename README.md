@@ -31,7 +31,7 @@ import certifi
 from discord_gateway import DiscordConnection
 
 
-TOKEN = 'ABC123.XYZ789'
+TOKEN = 'MzQ0NDA0OTQ1MzU5MDc3Mzc3.MjA4MzQyOTM3LjA=.d8vcob1X/HtvA6ENdl6zZ01D+js+K0Ya5PbpPbBVN4A='
 RECV_SIZE = 65536
 SERVER_NAME = 'gateway.discord.gg'
 
@@ -53,7 +53,7 @@ def recv_event(conn, sock):
 
 def main():
     # Setup the socket and SSL for the WebSocket Secure connection.
-    conn = DiscordConnection('gateway.discord.gg', encoding='json')
+    conn = DiscordConnection(SERVER_NAME, encoding='json')
     ctx = ssl.create_default_context(cafile=certifi.where())
     sock = socket.create_connection(conn.destination)
     sock = ctx.wrap_socket(sock, server_hostname=SERVER_NAME)
