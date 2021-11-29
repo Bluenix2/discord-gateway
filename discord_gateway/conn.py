@@ -130,6 +130,18 @@ class DiscordConnection:
         # The gateway uses secure WebSockets (wss) hence port 443
         return self.uri, 443
 
+    @property
+    def closed(self) -> bool:
+        """Whether the connection is (partially) closed.
+
+        When this is true no heartbeat should be sent as a closing handshake
+        is in progress.
+        """
+        return self._proto.state in {
+            ConnectionState.CLOSED, ConnectionState.LOCAL_CLOSING,
+            ConnectionState.REMOTE_CLOSING
+        }
+
     def _encode(self, payload: Any) -> Event:
         """Prepare a payload to be sent to the gateway.
 
