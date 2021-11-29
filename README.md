@@ -11,7 +11,7 @@ threading fashion or asyncio/trio/curio.
 ## Usage
 
 For a reference implementation see
-[wumpy-gateway](https://github.com/Bluenix2/wumpy/library/wumpy-gateway/wumpy/gateway/shard.py).
+[wumpy-gateway](https://github.com/Bluenix2/wumpy/blob/main/library/wumpy-gateway/wumpy/gateway/shard.py).
 It is designed to handle all sort of network failures and race conditions.
 
 ## Quickstart
@@ -31,7 +31,7 @@ import certifi
 from discord_gateway import DiscordConnection
 
 
-TOKEN = 'ABC123.XYZ789'
+TOKEN = 'YOUR_VERY.WELL.HIDDEN_TOKEN'
 RECV_SIZE = 65536
 SERVER_NAME = 'gateway.discord.gg'
 
@@ -53,7 +53,7 @@ def recv_event(conn, sock):
 
 def main():
     # Setup the socket and SSL for the WebSocket Secure connection.
-    conn = DiscordConnection('gateway.discord.gg', encoding='json')
+    conn = DiscordConnection(SERVER_NAME, encoding='json')
     ctx = ssl.create_default_context(cafile=certifi.where())
     sock = socket.create_connection(conn.destination)
     sock = ctx.wrap_socket(sock, server_hostname=SERVER_NAME)
