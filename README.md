@@ -8,7 +8,7 @@ bytes given using `wsproto`.
 It means that this implementation can be reused for libraries implemented in a
 threading fashion or asyncio/trio/curio.
 
-## Usage
+## Reference Implementation
 
 For a reference implementation see
 [wumpy-gateway](https://github.com/Bluenix2/wumpy/blob/main/library/wumpy-gateway/wumpy/gateway/shard.py).
@@ -91,4 +91,169 @@ def main():
 
 if __name__ == '__main__':
     main()
+```
+
+## Comprehensive Guide
+
+### Connecting
+
+The very first thing required to use the Discord Gateway is to connect using a
+TCP socket with TLS enabled.
+
+Start by creating an instance of `DiscordConnection`, passing in the URI and
+encoding to use (most likely `'json'`), assign it to a variable called `conn`.
+
+Now, connect a TCP socket to `conn.destination` (this is a property that
+returns a tuple with the host and port to use - as often used when connecting)
+and wrap it with TLS. Using the built-in `socket` and `ssl` module with
+`certifi` that looks like this:
+
+```python
+SERVER_NAME = 'gateway.discord.gg'
+
+
+conn = DiscordConnection(SERVER_NAME, encoding='json')
+sock = socket.create_connection(conn.destination)
+
+ctx = ssl.create_default_context(cafile=certifi.where())
+sock = ctx.wrap_socket(sock, server_hostname=SERVER_NAME)
+```
+
+After the connection is established, generate a HTTP 101 Switching Protocols
+request by calling `conn.connect()` and sending it over the socket.
+
+### Bootstrapping and HELLOs
+
+It is now time to communicate over the WebSocket - or almost!
+
+You have yet to receive anything over the socket, not even the response to the
+HTTP request made. Create a while-loop that will iterate until a full event
+has been received, but it is important to wrap it in a try/except statement
+that catches the `ConnectionRejected` in-case Discord rejects the WebSocket
+upgrade.
+
+In each iteration the data from the socket should be passed to
+`conn.receive()`, which then returns a list of bytes that should be sent back
+to the socket. The code should roughly look like this:
+
+```python
+hello = None
+while hello is None:
+    try:
+        for to_send in conn.receive(sock.recv(65535)):
+            sock.send(to_send)
+    except ConnectionRejected:
+        print('Discord rejected the connection!')
+        raise
+
+    for hello in conn.events():
+        # After this has been executed, the hello variable will no longer
+        # be set to None and the while-loop will exit.
+        break
+```
+
+When this loop has exited all internal state of discord-gateway should be ready
+to IDENTIFY or RESUME depending on `conn.should_resume` (which is always
+falsely during startup - but useful during reconnections).
+
+### Heartbeating
+
+The next part is maintaining the connection established, this is done by
+launching a concurrent thread/task (depending on how concurrency is handled).
+
+The only purpose of this concurrent heartbeater is to periodically generate
+a HEARTBEAT commands and sleep:
+
+```python
+def heartbeater(conn, sock):
+    # Discord recommends sleeping this random amount of time before the first
+    # heartbeat, this is to relieve Discord's servers when they are starting
+    # up again after downtimes.
+    time.sleep(random.random() * conn.heartbeat_interval)
+
+    while True:
+        sock.send(conn.heartbeat())
+        time.sleep(conn.heartbeat_interval)
+```
+
+After this, you are now fully connected and can receive events similar to how
+you received the HELLO event.
+
+### Disconnecting
+
+#### Expected Disconnections
+
+When disconnecting you need to follow the WebSocket protocol, to start off
+generate a closing frame using `conn.close()` and send it over the socket.
+
+Afterwards, receive data until discord-gateway raises `CloseDiscordConnection`
+and send the `data` attribute over the socket. Lastly shutdown the write end
+of the socket using `sock.shutdown(socket.SHUT_WR)` and then fully close the
+socket. In code that would look like this:
+
+```python
+sock.send(conn.close())
+
+try:
+    while True:
+        for data in conn.receive(socket.recv(65535)):
+            sock.send(data)
+except CloseDiscordConnection as err:
+    if err.data is not None:
+        sock.send(err.data)
+
+# Shutdown the socket now that the WebSocket is closed
+sock.shutdown(socket.SHUT_WR)
+
+received = None
+while received != b'':
+    received = sock.recv(65535)
+
+sock.close()
+```
+
+#### Unexpected Disconnections
+
+Discord-gateway automatically schedules for reconnections in cases such as
+un-acknowledged heartbeats and RECONNECT events. That said, discord-gateway
+still needs your help to actually reconnect the underlying socket.
+
+Like with expected disconnections discord-gateway raises
+`CloseDiscordConnection` when the closing handshake is being made, just follow
+what was done for expected disconnects and then reconnect but do not create a
+new `DiscordConnection` instance. Doing so looses information such as why the
+reconnection is happening in the first place. Instead call the `reconnect()`
+method to reset the internal state.
+
+### Race conditions
+
+Because of the concurrent heartbeater there are potential race conditions,
+primarily when reconnecting.
+
+The easiest way to fix this is to use a lock that is held when reconnecting,
+the heartbeater has to acquire it everytime it tries to send a heartbeat.
+
+Another potential issue is sending a heartbeat while the closing handshake is
+in progress - that is, the client has sent one closing frame but not yet
+received it from the other end. Discord-gateway provides a simple property
+called `closed`, if this is set just skip sending anything and sleep again.
+
+Following the theme of `socket`s and threads here is an example of an improved
+heartbeater:
+
+```python
+lock = ...
+
+
+def heartbeater(conn, sock):
+    # Discord recommends sleeping this random amount of time before the first
+    # heartbeat, this is to relieve Discord's servers when they are starting
+    # up again after downtimes.
+    time.sleep(random.random() * conn.heartbeat_interval)
+
+    while True:
+        with lock:
+            if not conn.closed:
+                sock.send(conn.heartbeat())
+        time.sleep(conn.heartbeat_interval)
 ```
