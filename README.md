@@ -11,7 +11,7 @@ threading fashion or asyncio/trio/curio.
 ## Usage
 
 For a reference implementation see
-[wumpy-gateway](https://github.com/Bluenix2/wumpy/blob/main/library/wumpy/gateway/shard.py).
+[wumpy-gateway](https://github.com/Bluenix2/wumpy/blob/main/library/wumpy-gateway/wumpy/gateway/shard.py).
 It is designed to handle all sort of network failures and race conditions.
 
 ## Quickstart
