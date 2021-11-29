@@ -11,7 +11,7 @@ threading fashion or asyncio/trio/curio.
 ## Usage
 
 For a reference implementation see
-[wumpy-gateway](https://github.com/Bluenix2/wumpy/library/wumpy-gateway/wumpy/gateway/shard.py).
+[wumpy-gateway](https://github.com/Bluenix2/wumpy/blob/main/library/wumpy/gateway/shard.py).
 It is designed to handle all sort of network failures and race conditions.
 
 ## Quickstart
@@ -31,7 +31,7 @@ import certifi
 from discord_gateway import DiscordConnection
 
 
-TOKEN = 'MzQ0NDA0OTQ1MzU5MDc3Mzc3.MjA4MzQyOTM3LjA=.d8vcob1X/HtvA6ENdl6zZ01D+js+K0Ya5PbpPbBVN4A='
+TOKEN = 'YOUR_VERY.WELL.HIDDEN_TOKEN'
 RECV_SIZE = 65536
 SERVER_NAME = 'gateway.discord.gg'
 
