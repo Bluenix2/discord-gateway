@@ -131,11 +131,12 @@ class DiscordConnection:
         return self.uri, 443
 
     @property
-    def closed(self) -> bool:
-        """Whether the connection is (partially) closed.
+    def closing(self) -> bool:
+        """Whether the connection is closing.
 
         When this is true no heartbeat should be sent as a closing handshake
-        is in progress.
+        is in progress. The best course of action is to simply skip sending
+        the heartbeat and sleep another heartbeat interval.
         """
         return self._proto.state in {
             ConnectionState.CLOSED, ConnectionState.LOCAL_CLOSING,

@@ -165,7 +165,7 @@ The only purpose of this concurrent heartbeater is to periodically generate
 a HEARTBEAT commands and sleep:
 
 ```python
-def heartbeater(conn, sock):
+def heartbeater(conn: DiscordConnection, sock: socket.socket) -> typing.NoReturn:
     # Discord recommends sleeping this random amount of time before the first
     # heartbeat, this is to relieve Discord's servers when they are starting
     # up again after downtimes.
@@ -253,7 +253,7 @@ def heartbeater(conn, sock):
 
     while True:
         with lock:
-            if not conn.closed:
+            if not conn.closing:
                 sock.send(conn.heartbeat())
         time.sleep(conn.heartbeat_interval)
 ```
