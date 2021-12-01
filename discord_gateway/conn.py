@@ -377,25 +377,41 @@ class DiscordConnection:
                 if self.compress == 'zlib-stream':
                     self._bytes_buffer.extend(event.data)
 
-                    if len(event.data) < 4 or event.data[-4:] != ZLIB_SUFFIX:
-                        # It isn't the end of the event and there will be more
-                        # coming
+                    if not event.message_finished:
                         continue
+
+                    if len(self._bytes_buffer) < 4 or self._bytes_buffer[-4:] != ZLIB_SUFFIX:
+                        # The message is finished but our data doesn't end with
+                        # the correct ZLIB suffix... there isn't really any
+                        # sensible way to recover from this.
+                        raise RuntimeError('Finished compressed message without ZLIB suffix')
 
                     # The Zlib suffix has been sent and our buffer should be
                     # full with a complete message
                     if self.encoding == 'json':
-                        payload = json_loads(self._inflator.decompress(event.data))
+                        payload = json_loads(self._inflator.decompress(self._bytes_buffer))
                     else:
-                        payload = etf_unpack(self._inflator.decompress(event.data))
+                        payload = etf_unpack(self._inflator.decompress(self._bytes_buffer))
 
                     self._bytes_buffer = bytearray()  # Reset our buffer
 
                 elif self.compress is True:
-                    payload = json_loads(zlib.decompress(event.data))
+                    self._bytes_buffer.extend(event.data)
+
+                    if not event.message_finished:
+                        continue
+
+                    payload = json_loads(zlib.decompress(self._bytes_buffer))
+                    self._bytes_buffer = bytearray()
 
                 elif self.encoding == 'etf':
-                    payload = etf_unpack(event.data)
+                    self._bytes_buffer.extend(event.data)
+
+                    if not event.message_finished:
+                        continue
+
+                    payload = etf_unpack(self._bytes_buffer)
+                    self._bytes_buffer = bytearray()
 
                 else:
                     raise RuntimeError('Received bytes message when no compression specified')
