@@ -64,6 +64,13 @@ class DiscordConnection:
     acknowledged: bool
     heartbeat_interval: Optional[float]
 
+    __slots__ = (
+        'uri', 'encoding', 'compress', 'dispatch_handled', 'session_id',
+        'sequence', '_events', 'should_resume', '_proto', 'acknowledged',
+        'heartbeat_interval', '_events', '_bytes_buffer', '_text_buffer',
+        '_inflator',
+    )
+
     def __init__(
         self,
         uri: str,
