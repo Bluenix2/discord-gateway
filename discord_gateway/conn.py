@@ -182,7 +182,7 @@ class DiscordConnection:
         self.acknowledged = True
         self.heartbeat_interval = None
 
-        self._buffer = bytearray()
+        self._bytes_buffer = bytearray()
         self._text_buffer = ''
         self._inflator = zlib.decompressobj()
 
@@ -368,7 +368,7 @@ class DiscordConnection:
 
             elif isinstance(event, BytesMessage):
                 if self.compress == 'zlib-stream':
-                    self._buffer.extend(event.data)
+                    self._bytes_buffer.extend(event.data)
 
                     if len(event.data) < 4 or event.data[-4:] != ZLIB_SUFFIX:
                         # It isn't the end of the event and there will be more
@@ -382,7 +382,7 @@ class DiscordConnection:
                     else:
                         payload = etf_unpack(self._inflator.decompress(event.data))
 
-                    self.buffer = bytearray()  # Reset our buffer
+                    self._bytes_buffer = bytearray()  # Reset our buffer
 
                 elif self.compress is True:
                     payload = json_loads(zlib.decompress(event.data))
