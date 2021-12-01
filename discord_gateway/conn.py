@@ -69,7 +69,8 @@ class DiscordConnection:
         uri: str,
         *,
         encoding: str,
-        compress: Union[str, bool] = False
+        compress: Union[str, bool] = False,
+        dispatch_handled: bool = False,
     ) -> None:
         """Initialize a Discord Connection.
 
@@ -90,6 +91,10 @@ class DiscordConnection:
                 compression and both cannot be used at the same time. Payload
                 compression is specified when IDENTIFYing. Specify
                 'zlib-stream' for transport compression.
+            dispatch_handled:
+                Whether to dispatch automatically handled events. Examples of
+                these types of events are HEARTBEAT_ACK and RECONNECT. When
+                this is set to False these events are not dispatched.
         """
         if encoding == 'etf' and not ERLPACK_AVAILABLE:
             raise ValueError("ETF encoding not available without 'erlpack' installed")
@@ -103,6 +108,8 @@ class DiscordConnection:
         self.uri = uri
         self.encoding = encoding
         self.compress = compress
+
+        self.dispatch_handled = dispatch_handled
 
         self.session_id = None
         self.sequence = None
@@ -392,7 +399,7 @@ class DiscordConnection:
 
             dispatch, response = self._handle_event(payload)
 
-            if dispatch:
+            if self.dispatch_handled or dispatch:
                 self._events.append(payload)
 
             if response is not None:
