@@ -121,8 +121,6 @@ class DiscordConnection:
         self.session_id = None
         self.sequence = None
 
-        self._events = deque()  # Buffer of events received
-
         # This will initialize the rest of the attributes
         self.reconnect()
 
@@ -188,6 +186,8 @@ class DiscordConnection:
 
         self.acknowledged = True
         self.heartbeat_interval = None
+
+        self._events = deque()  # Buffer of events received
 
         self._bytes_buffer = bytearray()
         self._text_buffer = ''
