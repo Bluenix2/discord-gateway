@@ -436,7 +436,7 @@ class DiscordConnection:
         token: str,
         intents: int,
         properties: Dict[str, Any],
-        compress: bool = False,
+        compress: Optional[bool] = None,
         large_treshold: int = 50,
         shard: Optional[Tuple[int, int]] = None,
         presence: Optional[Dict[str, Any]] = None,
