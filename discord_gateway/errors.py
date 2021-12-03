@@ -10,10 +10,23 @@ class CloseDiscordConnection(Exception):
 
     The `data` attribute contains any potentially last bytes to send before
     closing the TCP socket - or None indicating that nothing should be sent.
+
+    The `code` attribute is the close code and the `reason` attribute optionally
+    contains the reason of the closure.
     """
 
-    def __init__(self, data: Optional[bytes]) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        data: Optional[bytes],
+        code: Optional[int] = None,
+        reason: Optional[str] = None
+    ) -> None:
+        super().__init__(
+            f"{code if code is not None else ''}{' - '+reason if reason is not None else ''}"
+        )
+
+        self.code = code
+        self.reason = reason
 
         self.data = data
 

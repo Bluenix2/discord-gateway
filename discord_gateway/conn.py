@@ -360,7 +360,11 @@ class DiscordConnection:
                 else:
                     # It should be ConnectionState.REMOTE_CLOSING and we need
                     # to reply to the closure
-                    raise CloseDiscordConnection(self._proto.send(event.response()))
+                    raise CloseDiscordConnection(
+                        self._proto.send(event.response()),
+                        code=event.code,
+                        reason=event.reason,
+                    )
 
             elif isinstance(event, TextMessage):
                 # Compressed message will only show up as ByteMessage events,
