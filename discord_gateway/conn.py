@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 from wsproto import ConnectionType, WSConnection
 from wsproto.connection import ConnectionState
 from wsproto.events import (
-    BytesMessage, CloseConnection, Event, Ping, RejectConnection, Request,
+    BytesMessage, CloseConnection, Event, Message, Ping, RejectConnection, RejectData, Request,
     TextMessage
 )
 
@@ -313,6 +313,75 @@ class DiscordConnection:
 
         return True, None
 
+    def _receive_msg(self, event: Message) -> Optional[bytes]:
+        if isinstance(event, TextMessage):
+            # Compressed message will only show up as ByteMessage events,
+            # we can interpret this as a full JSON payload.
+            self._text_buffer += event.data
+
+            if not event.message_finished:
+                return None
+
+            payload = json_loads(self._text_buffer)
+            self._text_buffer = ''
+
+        elif isinstance(event, BytesMessage):
+            if self.compress == 'zlib-stream':
+                self._bytes_buffer.extend(event.data)
+
+                if not event.message_finished:
+                    return None
+
+                if len(self._bytes_buffer) < 4 or self._bytes_buffer[-4:] != ZLIB_SUFFIX:
+                    # The message is finished but our data doesn't end with
+                    # the correct ZLIB suffix... there isn't really any
+                    # sensible way to recover from this.
+                    raise RuntimeError('Finished compressed message without ZLIB suffix')
+
+                # The Zlib suffix has been sent and our buffer should be
+                # full with a complete message
+                if self.encoding == 'json':
+                    payload = json_loads(self._inflator.decompress(self._bytes_buffer))
+                else:
+                    payload = etf_unpack(self._inflator.decompress(self._bytes_buffer))
+
+                self._bytes_buffer = bytearray()  # Reset our buffer
+
+            elif self.compress is True:
+                self._bytes_buffer.extend(event.data)
+
+                if not event.message_finished:
+                    return None
+
+                payload = json_loads(zlib.decompress(self._bytes_buffer))
+                self._bytes_buffer = bytearray()
+
+            elif self.encoding == 'etf':
+                self._bytes_buffer.extend(event.data)
+
+                if not event.message_finished:
+                    return None
+
+                payload = etf_unpack(self._bytes_buffer)
+                self._bytes_buffer = bytearray()
+
+            else:
+                raise RuntimeError('Received bytes message when no compression specified')
+        else:
+            # The code below is shared for TextMessage and BytesMessage but
+            # any other event we have received shouldn't cause this to run.
+            return None
+
+        dispatch, response = self._handle_event(payload)
+
+        if self.dispatch_handled or dispatch:
+            self._events.append(payload)
+
+        if response is not None:
+            return response
+
+        return None
+
     def receive(self, data: Optional[bytes]) -> List[bytes]:
         """Receive data from the WebSocket.
 
@@ -341,7 +410,6 @@ class DiscordConnection:
         for event in self._proto.events():
             if isinstance(event, Ping):
                 res.append(self._proto.send(event.response()))
-                continue
 
             elif isinstance(event, RejectConnection):
                 raise ConnectionRejected(event)
@@ -366,71 +434,10 @@ class DiscordConnection:
                         reason=event.reason,
                     )
 
-            elif isinstance(event, TextMessage):
-                # Compressed message will only show up as ByteMessage events,
-                # we can interpret this as a full JSON payload.
-                self._text_buffer += event.data
-
-                if not event.message_finished:
-                    continue
-
-                payload = json_loads(self._text_buffer)
-                self._text_buffer = ''
-
-            elif isinstance(event, BytesMessage):
-                if self.compress == 'zlib-stream':
-                    self._bytes_buffer.extend(event.data)
-
-                    if not event.message_finished:
-                        continue
-
-                    if len(self._bytes_buffer) < 4 or self._bytes_buffer[-4:] != ZLIB_SUFFIX:
-                        # The message is finished but our data doesn't end with
-                        # the correct ZLIB suffix... there isn't really any
-                        # sensible way to recover from this.
-                        raise RuntimeError('Finished compressed message without ZLIB suffix')
-
-                    # The Zlib suffix has been sent and our buffer should be
-                    # full with a complete message
-                    if self.encoding == 'json':
-                        payload = json_loads(self._inflator.decompress(self._bytes_buffer))
-                    else:
-                        payload = etf_unpack(self._inflator.decompress(self._bytes_buffer))
-
-                    self._bytes_buffer = bytearray()  # Reset our buffer
-
-                elif self.compress is True:
-                    self._bytes_buffer.extend(event.data)
-
-                    if not event.message_finished:
-                        continue
-
-                    payload = json_loads(zlib.decompress(self._bytes_buffer))
-                    self._bytes_buffer = bytearray()
-
-                elif self.encoding == 'etf':
-                    self._bytes_buffer.extend(event.data)
-
-                    if not event.message_finished:
-                        continue
-
-                    payload = etf_unpack(self._bytes_buffer)
-                    self._bytes_buffer = bytearray()
-
-                else:
-                    raise RuntimeError('Received bytes message when no compression specified')
-            else:
-                # The code below is shared for TextMessage and BytesMessage but
-                # any other event we have received shouldn't cause this to run.
-                continue
-
-            dispatch, response = self._handle_event(payload)
-
-            if self.dispatch_handled or dispatch:
-                self._events.append(payload)
-
-            if response is not None:
-                res.append(response)
+            elif isinstance(event, Message):
+                response = self._receive_msg(event)
+                if response is not None:
+                    res.append(response)
 
         return res
 
