@@ -10,7 +10,7 @@ from wsproto.events import (
     TextMessage
 )
 
-from .errors import CloseDiscordConnection, ConnectionRejected
+from .errors import CloseDiscordConnection, ConnectionRejected, RejectedConnectionData
 from .opcode import Opcode
 
 try:
@@ -394,6 +394,10 @@ class DiscordConnection:
 
         Raises:
             RuntimeError: Compressed event received with no compression.
+            ConnectionRejected:
+                Discord rejected the connection, continue receiving data to
+                receive the body from the HTTP response.
+            RejectedConnectionData: The whole HTTP response has been received.
 
         Returns:
             A list of bytes to respond back with. See `events()` for how to
@@ -413,6 +417,17 @@ class DiscordConnection:
 
             elif isinstance(event, RejectConnection):
                 raise ConnectionRejected(event)
+
+            elif isinstance(event, RejectData):
+                self._bytes_buffer.extend(event.data)
+
+                if event.body_finished:
+                    data = bytes(self._bytes_buffer)
+                    # Even though we should not be receiving more data, it's
+                    # best to clean up and make sure we have a correct state.
+                    self._bytes_buffer.clear()
+
+                    raise RejectedConnectionData(data)
 
             elif isinstance(event, CloseConnection):
                 # This may or may not have been initiated by us, either way the

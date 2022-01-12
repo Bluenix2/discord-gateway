@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from wsproto.events import RejectConnection
 
@@ -46,3 +46,13 @@ class ConnectionRejected(Exception):
 
         self.code = event.status_code
         self.headers = event.headers
+
+
+class RejectedConnectionData(Exception):
+    """Exception raised to signal the body has been received."""
+    def __init__(self, data: bytes) -> None:
+        super().__init__(
+            'Complete HTTP response body for rejected WebSocket connection'
+        )
+
+        self.data = data
