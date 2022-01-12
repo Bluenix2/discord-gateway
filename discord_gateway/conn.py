@@ -1,16 +1,18 @@
 import zlib
 from collections import deque
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, Union
 from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
 from wsproto.connection import ConnectionState
 from wsproto.events import (
-    BytesMessage, CloseConnection, Event, Message, Ping, RejectConnection, RejectData, Request,
-    TextMessage
+    BytesMessage, CloseConnection, Event, Message, Ping, RejectConnection,
+    RejectData, Request, TextMessage
 )
 
-from .errors import CloseDiscordConnection, ConnectionRejected, RejectedConnectionData
+from .errors import (
+    CloseDiscordConnection, ConnectionRejected, RejectedConnectionData
+)
 from .opcode import Opcode
 
 try:
@@ -527,5 +529,96 @@ class DiscordConnection:
                 'token': token,
                 'session_id': self.session_id,
                 'seq': self.sequence
+            },
+        }))
+
+    def request_guild_members(
+        self,
+        guild: Union[str, int],
+        *,
+        limit: int = 0,
+        query: Optional[str] = None,
+        presences: Optional[bool] = None,
+        users: Optional[Union[List[Union[str, int]], Union[str, int]]] = None,
+        nonce: Optional[str] = None
+    ) -> bytes:
+
+        data = {
+            'guild_id': guild,
+            'limit': limit,
+        }
+
+        if query is not None:
+            data['query'] = query
+
+        if presences is not None:
+            data['presences'] = presences
+
+        if users is not None:
+            data['user_ids'] = users
+
+        if nonce is not None:
+            data['nonce'] = nonce
+
+        return self._proto.send(self._encode({
+            'op': Opcode.REQUEST_GUILD_MEMBERS,
+            'd': data
+        }))
+
+    def update_voice_state(
+        self,
+        guild: Union[str, int],
+        channel: Optional[Union[str, int]],
+        *,
+        mute: bool = False,
+        deafen: bool = False
+    ) -> bytes:
+        """"Generate a VOICE_STATE_UPDATE command from the current state.
+
+        Parameters:
+            guild: The guild to update the voice state for.
+            channel: The voice channel to move the bot to.
+            mute: Whether or not the bot should be muted.
+            deafen: Whether or not the bot should be deafened.
+
+        Returns:
+            The bytes to send to the TCP socket.
+        """
+        return self._proto.send(self._encode({
+            'op': Opcode.VOICE_STATE_UPDATE,
+            'd': {
+                'guild_id': guild,
+                'channel_id': channel,
+                'self_mute': mute,
+                'self_deaf': deafen
+            },
+        }))
+
+    def update_presence(
+        self,
+        *,
+        activities: List[Dict[str, Any]],
+        status: Literal['online', 'dnd', 'idle', 'invisible'] = 'online',
+        afk: bool = False,
+        since: Optional[int] = None,
+    ) -> bytes:
+        """Generate a UPDATE_PRESENCE command from the current state.
+
+        Parameters:
+            activities: A list of activities the bot is doing.
+            status: The new status icon of the bot.
+            afk: Whether or not the bot should be treated as AFK.
+            since: The unix time (in milliseconds) that the bot went idle.
+
+        Returns:
+            The bytes to send to the TCP socket.
+        """
+        return self._proto.send(self._encode({
+            'op': Opcode.PRESENCE_UPDATE,
+            'd': {
+                'since': since,
+                'activities': activities,
+                'status': status,
+                'afk': afk
             },
         }))
