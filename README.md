@@ -225,6 +225,10 @@ new `DiscordConnection` instance. Doing so looses information such as why the
 reconnection is happening in the first place. Instead call the `reconnect()`
 method to reset the internal state.
 
+Use the `should_reconnect()` function to determine whether to reconnect, if it
+returns `False` that signals that the connection **must not** be reconnected.
+It is recommended to raise an error or similar in this case.
+
 ### Race conditions
 
 Because of the concurrent heartbeater there are potential race conditions,
