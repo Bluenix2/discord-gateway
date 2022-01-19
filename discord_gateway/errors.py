@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from wsproto.events import RejectConnection
 
@@ -14,6 +14,11 @@ class CloseDiscordConnection(Exception):
     The `code` attribute is the close code and the `reason` attribute optionally
     contains the reason of the closure.
     """
+
+    code: Optional[int]
+    reason: Optional[str]
+
+    data: Optional[bytes]
 
     def __init__(
         self,
@@ -39,6 +44,9 @@ class ConnectionRejected(Exception):
     discord-gateway's point of view) depending on the status code.
     """
 
+    code: int
+    headers: List[Tuple[bytes, bytes]]
+
     def __init__(self, event: RejectConnection) -> None:
         super().__init__(
             f'Discord rejected the WebSocket connection - Error code {event.status_code}'
@@ -50,6 +58,9 @@ class ConnectionRejected(Exception):
 
 class RejectedConnectionData(Exception):
     """Exception raised to signal the body has been received."""
+
+    data: bytes
+
     def __init__(self, data: bytes) -> None:
         super().__init__(
             'Complete HTTP response body for rejected WebSocket connection'
