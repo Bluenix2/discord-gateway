@@ -73,6 +73,7 @@ class DiscordConnection:
     compress: Union[str, bool]
     dispatch_handled: bool
 
+    should_resume: Optional[bool]
     session_id: Optional[str]
     sequence: Optional[int]
 
