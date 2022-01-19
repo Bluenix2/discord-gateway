@@ -1,13 +1,15 @@
 import zlib
 from collections import deque
-from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any, Deque, Dict, Generator, List, Literal, Optional, Tuple, Union
+)
 from urllib.parse import urlencode
 
 from wsproto import ConnectionType, WSConnection
 from wsproto.connection import ConnectionState
 from wsproto.events import (
-    BytesMessage, CloseConnection, Event, Message, Ping, RejectConnection,
-    RejectData, Request, TextMessage
+    BytesMessage, CloseConnection, Event, Ping, RejectConnection, RejectData,
+    Request, TextMessage
 )
 
 from .errors import (
@@ -56,9 +58,20 @@ class DiscordConnection:
         heartbeat_interval: Amount of seconds to sleep between heartbeats.
     """
 
+    _proto: WSConnection
+    _events: Deque[Dict[str, Any]]
+
+    _bytes_buffer: bytearray
+    _text_buffer: str
+
+    # This is actually a function that returns the underlying class, so we
+    # can't annotate this attribute.
+    # _inflator: zlib.decompressobj
+
     uri: str
     encoding: str
     compress: Union[str, bool]
+    dispatch_handled: bool
 
     session_id: Optional[str]
     sequence: Optional[int]
@@ -315,7 +328,7 @@ class DiscordConnection:
 
         return True, None
 
-    def _receive_msg(self, event: Message) -> Optional[bytes]:
+    def _receive_msg(self, event: Union[TextMessage, BytesMessage]) -> Optional[bytes]:
         if isinstance(event, TextMessage):
             # Compressed message will only show up as ByteMessage events,
             # we can interpret this as a full JSON payload.
@@ -327,7 +340,7 @@ class DiscordConnection:
             payload = json_loads(self._text_buffer)
             self._text_buffer = ''
 
-        elif isinstance(event, BytesMessage):
+        else:
             if self.compress == 'zlib-stream':
                 self._bytes_buffer.extend(event.data)
 
@@ -345,7 +358,9 @@ class DiscordConnection:
                 if self.encoding == 'json':
                     payload = json_loads(self._inflator.decompress(self._bytes_buffer))
                 else:
-                    payload = etf_unpack(self._inflator.decompress(self._bytes_buffer))
+                    payload: Dict[str, Any] = etf_unpack(
+                        self._inflator.decompress(self._bytes_buffer)
+                    )
 
                 self._bytes_buffer = bytearray()  # Reset our buffer
 
@@ -364,25 +379,18 @@ class DiscordConnection:
                 if not event.message_finished:
                     return None
 
-                payload = etf_unpack(self._bytes_buffer)
+                payload: Dict[str, Any] = etf_unpack(self._bytes_buffer)
                 self._bytes_buffer = bytearray()
 
             else:
                 raise RuntimeError('Received bytes message when no compression specified')
-        else:
-            # The code below is shared for TextMessage and BytesMessage but
-            # any other event we have received shouldn't cause this to run.
-            return None
 
         dispatch, response = self._handle_event(payload)
 
         if self.dispatch_handled or dispatch:
             self._events.append(payload)
 
-        if response is not None:
-            return response
-
-        return None
+        return response
 
     def receive(self, data: Optional[bytes]) -> List[bytes]:
         """Receive data from the WebSocket.
@@ -411,7 +419,7 @@ class DiscordConnection:
 
         self._proto.receive_data(data)
 
-        res = []
+        res: List[bytes] = []
 
         for event in self._proto.events():
             if isinstance(event, Ping):
@@ -451,7 +459,7 @@ class DiscordConnection:
                         reason=event.reason,
                     )
 
-            elif isinstance(event, Message):
+            elif isinstance(event, (TextMessage, BytesMessage)):
                 response = self._receive_msg(event)
                 if response is not None:
                     res.append(response)
@@ -488,7 +496,7 @@ class DiscordConnection:
         """
         self.should_resume = None  # Reset the state for the next reconnection
 
-        data = {
+        data: Dict[str, Any] = {
             'token': token,
             'intents': intents,
             'properties': properties
@@ -543,7 +551,7 @@ class DiscordConnection:
         nonce: Optional[str] = None
     ) -> bytes:
 
-        data = {
+        data: Dict[str, Any] = {
             'guild_id': guild,
             'limit': limit,
         }

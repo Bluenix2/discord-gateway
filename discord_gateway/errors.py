@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional
 
 from wsproto.events import RejectConnection
 
