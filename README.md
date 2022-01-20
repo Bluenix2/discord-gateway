@@ -225,6 +225,34 @@ new `DiscordConnection` instance. Doing so looses information such as why the
 reconnection is happening in the first place. Instead call the `reconnect()`
 method to reset the internal state.
 
+`reconnect()` returns an integer representing the amount of seconds to wait
+before retrying, this will expotentially increase until a successful HELLO
+event is received. To take advantage of this, you should structure a retry loop
+like this:
+
+```python
+while True:
+    time.sleep(conn.reconnect())
+
+    try:
+        # Connect to the socket as normal, see "Bootstrapping and HELLOs" above
+        ...
+    except EOFError:
+        # Note that in some implementations an empty bytes object is returned
+        # to signal this. It essentially means that the socket closed. Don't
+        # forget to clean up the socket in all of these except-clauses.
+        ...
+        continue
+
+    except ConnectionRejected as err:
+        ...
+        continue
+    else:
+        # If the bootstrapping succeeded and we received a HELLO event, then
+        # we can finally exit this loop.
+        break
+```
+
 Use the `should_reconnect()` function to determine whether to reconnect, if it
 returns `False` that signals that the connection **must not** be reconnected.
 It is recommended to raise an error or similar in this case.

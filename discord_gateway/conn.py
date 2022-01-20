@@ -60,6 +60,7 @@ class DiscordConnection:
 
     _proto: WSConnection
     _events: Deque[Dict[str, Any]]
+    _attempts: int
 
     _bytes_buffer: bytearray
     _text_buffer: str
@@ -84,7 +85,7 @@ class DiscordConnection:
         'uri', 'encoding', 'compress', 'dispatch_handled', 'session_id',
         'sequence', '_events', 'should_resume', '_proto', 'acknowledged',
         'heartbeat_interval', '_events', '_bytes_buffer', '_text_buffer',
-        '_inflator',
+        '_inflator', '_attempts'
     )
 
     def __init__(
@@ -137,6 +138,9 @@ class DiscordConnection:
         self.session_id = None
         self.sequence = None
 
+        self.should_resume = None
+        self._attempts = 0
+
         # This will initialize the rest of the attributes
         self.reconnect()
 
@@ -183,7 +187,7 @@ class DiscordConnection:
             # The encoding is ETF because these are only two cases
             return BytesMessage(etf_pack(payload))
 
-    def reconnect(self) -> None:
+    def reconnect(self) -> int:
         """Reinitialize the connection.
 
         This should be called when the TCP socket is re-established and will
@@ -191,12 +195,15 @@ class DiscordConnection:
 
         The only thing not reset is the `should_resume` attribute which is
         set when disconnecting.
+
+        Returns:
+            A duration to sleep, allowing for expotential backoff
+            implementations to better handle Discord server downtimes.
         """
         # This method is called when the user is reconnecting using another TCP
         # socket, we don't want to override the bool that may have been set
         # when closing.
-        if getattr(self, 'should_resume', None) is None:
-            self.should_resume = None
+        # self.should_resume = None
 
         self._proto = WSConnection(ConnectionType.CLIENT)
 
@@ -208,6 +215,13 @@ class DiscordConnection:
         self._bytes_buffer = bytearray()
         self._text_buffer = ''
         self._inflator = zlib.decompressobj()
+
+        # Normally an expotential backoff algorithm has +1 because if attempt
+        # is 0 then the sleep duration should become 1. In this case though,
+        # it's preferable to not sleep at all if it's the first attempt.
+        sleep = self._attempts * 2
+        self._attempts += 1
+        return sleep
 
     def events(self) -> Generator[Dict[str, Any], None, None]:
         """Generator that yields events which have been received.
@@ -303,6 +317,7 @@ class DiscordConnection:
         elif event['op'] == Opcode.HELLO:
             # Discord sends the interval in milliseconds
             self.heartbeat_interval = event['d']['heartbeat_interval'] / 1000
+            self._attempts = 0  # Considered a successful attempt
             return True, None
 
         elif event['op'] == Opcode.DISPATCH and event['t'] == 'READY':
