@@ -1,7 +1,7 @@
 import zlib
 from collections import deque
 from typing import (
-    Any, Deque, Dict, Generator, List, Literal, Optional, Tuple, Union
+    Any, Deque, Dict, Generator, List, Literal, Optional, Tuple, Union, overload
 )
 from urllib.parse import urlencode
 
@@ -560,17 +560,36 @@ class DiscordConnection:
         self,
         guild: Union[str, int],
         *,
-        limit: int = 0,
+        limit: Optional[int] = None,
         query: Optional[str] = None,
         presences: Optional[bool] = None,
         users: Optional[Union[List[Union[str, int]], Union[str, int]]] = None,
         nonce: Optional[str] = None
     ) -> bytes:
+        """Generate a REQUEST_GUILD_MEMBERS command.
 
+        Refer to the Discord documentation for advanced configuration.
+
+        This endpoint purposefully does not use overloads to restrict usage of
+        'limit' and 'query', this is because it is likely that project built on
+        top of discord-gateway is expected to just want to forward user input.
+
+        Parameters:
+            guild: For what guild to get members in.
+            limit: The maximum amount of members to send.
+            presences: Whether to send presences for the members.
+            users: List of specific users to request member data for.
+            nonce: A helpful nonce value to identify a specific response.
+
+        Returns:
+            The bytes to send to the TCP socket.
+        """
         data: Dict[str, Any] = {
-            'guild_id': guild,
-            'limit': limit,
+            'guild_id': int(guild),
         }
+
+        if limit is not None:
+            data['limit'] = limit
 
         if query is not None:
             data['query'] = query
