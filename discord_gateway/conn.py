@@ -331,7 +331,7 @@ class DiscordConnection:
             # exception there.
             self.should_resume = True
             # There really isn't a completely fitting error code here
-            return False, self._proto.send(CloseConnection(1008))
+            return False, self._proto.send(CloseConnection(1012))
 
         elif event['op'] == Opcode.INVALID_SESSION:
             # This is documented to be sent if:
@@ -340,7 +340,7 @@ class DiscordConnection:
             # - The gateway has invalidated an active session
             # The 'd' key indicates whether we should resume
             self.should_resume = event['d']
-            return False, self._proto.send(CloseConnection(1008))
+            return False, self._proto.send(CloseConnection(1012))
 
         return True, None
 
