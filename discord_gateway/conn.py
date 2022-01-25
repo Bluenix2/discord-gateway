@@ -123,9 +123,6 @@ class DiscordConnection:
         if encoding == 'etf' and not ERLPACK_AVAILABLE:
             raise ValueError("ETF encoding not available without 'erlpack' installed")
 
-        if uri.endswith('/'):
-            uri = uri[:-1]
-
         if uri.startswith('wss://'):
             uri = uri[6:]
 
@@ -159,8 +156,18 @@ class DiscordConnection:
         The tuple has two items representing the host and port to open a TCP
         socket to.
         """
-        # The gateway uses secure WebSockets (wss) hence port 443
-        return self.uri, 443
+        try:
+            end = self.uri.index('/')
+        except ValueError:
+            end = len(self.uri)
+
+        try:
+            i = self.uri.index(':')
+        except ValueError:
+            # The gateway uses secure WebSockets (wss) hence port 443
+            return self.uri[:end], 443
+
+        return self.uri[:i], int(self.uri[i + 1:end])
 
     @property
     def closing(self) -> bool:
@@ -247,7 +254,20 @@ class DiscordConnection:
         and send data until an HELLO event and the first HEARTBEAT command
         has been sent.
         """
-        return self._proto.send(Request(self.uri, '/?' + self.query_params))
+        uri = self.uri
+        target = ''
+
+        try:
+            i = uri.index('/')
+            target = uri[i:]
+            uri = uri[:i]
+        except ValueError:
+            pass
+
+        if target.endswith('/'):
+            target = target[:-1]
+
+        return self._proto.send(Request(uri, target + '/?' + self.query_params))
 
     def close(self, code: int = 1001) -> bytes:
         """Generate the bytes to send a closing frame to the WebSocket.
