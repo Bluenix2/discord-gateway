@@ -509,7 +509,7 @@ class DiscordConnection:
         intents: int,
         properties: Dict[str, Any],
         compress: Optional[bool] = None,
-        large_treshold: int = 50,
+        large_threshold: int = 50,
         shard: Optional[Tuple[int, int]] = None,
         presence: Optional[Dict[str, Any]] = None,
     ) -> bytes:
@@ -542,8 +542,8 @@ class DiscordConnection:
             data['compress'] = compress
             self.compress = compress
 
-        if large_treshold is not None:
-            data['large_treshold'] = large_treshold
+        if large_threshold is not None:
+            data['large_threshold'] = large_threshold
 
         if shard is not None:
             data['shard'] = shard
