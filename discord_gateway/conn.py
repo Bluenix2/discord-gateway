@@ -1,9 +1,9 @@
 import zlib
 from collections import deque
 from typing import (
-    Any, Deque, Dict, Generator, List, Literal, Optional, Tuple, Union, overload
+    Any, Deque, Dict, Generator, List, Literal, Optional, Tuple, Union
 )
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from wsproto import ConnectionType, WSConnection
 from wsproto.connection import ConnectionState
@@ -123,9 +123,6 @@ class DiscordConnection:
         if encoding == 'etf' and not ERLPACK_AVAILABLE:
             raise ValueError("ETF encoding not available without 'erlpack' installed")
 
-        if uri.startswith('wss://'):
-            uri = uri[6:]
-
         self.uri = uri
         self.encoding = encoding
         self.compress = compress
@@ -156,18 +153,12 @@ class DiscordConnection:
         The tuple has two items representing the host and port to open a TCP
         socket to.
         """
-        try:
-            end = self.uri.index('/')
-        except ValueError:
-            end = len(self.uri)
+        parsed = urlsplit(self.uri)
 
-        try:
-            i = self.uri.index(':')
-        except ValueError:
-            # The gateway uses secure WebSockets (wss) hence port 443
-            return self.uri[:end], 443
+        if parsed.hostname is None:
+            raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
 
-        return self.uri[:i], int(self.uri[i + 1:end])
+        return parsed.hostname, parsed.port if parsed.port is not None else 443
 
     @property
     def closing(self) -> bool:
@@ -254,20 +245,25 @@ class DiscordConnection:
         and send data until an HELLO event and the first HEARTBEAT command
         has been sent.
         """
-        uri = self.uri
-        target = ''
+        parsed = urlsplit(self.uri)
 
-        try:
-            i = uri.index('/')
-            target = uri[i:]
-            uri = uri[:i]
-        except ValueError:
-            pass
+        if parsed.hostname is None:
+            raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
 
-        if target.endswith('/'):
-            target = target[:-1]
+        target = '/'
+        if parsed.path:
+            target = parsed.path
 
-        return self._proto.send(Request(uri, target + '/?' + self.query_params))
+        target += '?'
+        if parsed.query:
+            target += parsed.query
+
+        target += self.query_params
+
+        if parsed.fragment:
+            target += '#' + parsed.fragment
+
+        return self._proto.send(Request(parsed.hostname, target))
 
     def close(self, code: int = 1001) -> bytes:
         """Generate the bytes to send a closing frame to the WebSocket.
