@@ -35,7 +35,7 @@ class CloseCode(enum.IntEnum):
     DISALLOWED_INTENTS = 4014
 
 
-# https://discord.dev/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
+# https://discord.com/developers/docs/topics/opcodes-and-status-codes#gateway-gateway-close-event-codes
 RECONNECT_CLOSE_CODE = {
     CloseCode.GENERIC_ERROR: True,
     CloseCode.UNKNOWN_OPCODE: True,
