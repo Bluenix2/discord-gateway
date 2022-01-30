@@ -1,7 +1,7 @@
 import zlib
 from collections import deque
 from typing import (
-    Any, Deque, Dict, Generator, List, Literal, Optional, Tuple, Union
+    Any, Deque, Dict, Generator, List, Optional, Tuple, Union
 )
 from urllib.parse import urlencode, urlsplit
 
@@ -657,7 +657,7 @@ class DiscordConnection:
         self,
         *,
         activities: List[Dict[str, Any]],
-        status: Literal['online', 'dnd', 'idle', 'invisible'] = 'online',
+        status: str = 'online',
         afk: bool = False,
         since: Optional[int] = None,
     ) -> bytes:
