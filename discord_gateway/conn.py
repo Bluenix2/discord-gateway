@@ -397,20 +397,27 @@ class DiscordConnection:
                     payload = json_loads(self._inflator.decompress(self._bytes_buffer))
                 else:
                     payload: Dict[str, Any] = etf_unpack(
-                        self._inflator.decompress(self._bytes_buffer)
+                        self._inflator.decompress(bytes(self._bytes_buffer))
                     )
 
                 self._bytes_buffer = bytearray()  # Reset our buffer
 
             elif self.compress is True:
+                if len(self._bytes_buffer) > 4 and self._bytes_buffer[-4:] == ZLIB_SUFFIX:
+                    decompressed = zlib.decompress(self._bytes_buffer)
+                else:
+                    decompressed = bytes(self._bytes_buffer)
 
+                if self.encoding == 'json':
+                    payload = json_loads(decompressed)
+                else:
+                    payload: Dict[str, Any] = etf_unpack(decompressed)
 
-                payload = json_loads(zlib.decompress(self._bytes_buffer))
                 self._bytes_buffer = bytearray()
 
             elif self.encoding == 'etf':
+                payload: Dict[str, Any] = etf_unpack(bytes(self._bytes_buffer))
 
-                payload: Dict[str, Any] = etf_unpack(self._bytes_buffer)
                 self._bytes_buffer = bytearray()
 
             else:
