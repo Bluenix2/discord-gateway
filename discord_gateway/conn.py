@@ -373,12 +373,12 @@ class DiscordConnection:
             self._text_buffer = ''
 
         else:
+            self._bytes_buffer.extend(event.data)
+
+            if not event.message_finished:
+                return None
+
             if self.compress == 'zlib-stream':
-                self._bytes_buffer.extend(event.data)
-
-                if not event.message_finished:
-                    return None
-
                 if len(self._bytes_buffer) < 4 or self._bytes_buffer[-4:] != ZLIB_SUFFIX:
                     # The message is finished but our data doesn't end with
                     # the correct ZLIB suffix... there isn't really any
@@ -397,19 +397,12 @@ class DiscordConnection:
                 self._bytes_buffer = bytearray()  # Reset our buffer
 
             elif self.compress is True:
-                self._bytes_buffer.extend(event.data)
 
-                if not event.message_finished:
-                    return None
 
                 payload = json_loads(zlib.decompress(self._bytes_buffer))
                 self._bytes_buffer = bytearray()
 
             elif self.encoding == 'etf':
-                self._bytes_buffer.extend(event.data)
-
-                if not event.message_finished:
-                    return None
 
                 payload: Dict[str, Any] = etf_unpack(self._bytes_buffer)
                 self._bytes_buffer = bytearray()
