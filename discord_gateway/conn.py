@@ -26,11 +26,17 @@ except ImportError:
     ERLPACK_AVAILABLE = False
 
 try:
-    from ujson import dumps as json_dumps
-    from ujson import loads as json_loads
+    from orjson import dumps as orjson_dumps
+    def json_dumps(obj: Any) -> str:
+        return orjson_dumps(obj).decode('utf-8')
+    from orjson import loads as json_loads
 except ImportError:
-    from json import dumps as json_dumps
-    from json import loads as json_loads
+    try:
+        from ujson import dumps as json_dumps
+        from ujson import loads as json_loads
+    except ImportError:
+        from json import dumps as json_dumps
+        from json import loads as json_loads
 
 
 __all__ = ('DiscordConnection',)
