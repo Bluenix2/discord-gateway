@@ -256,9 +256,7 @@ class DiscordConnection:
         if parsed.hostname is None:
             raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
 
-        target = '/'
-        if parsed.path:
-            target = parsed.path
+        target = parsed.path or '/'
 
         target += '?'
         if parsed.query:
@@ -267,7 +265,7 @@ class DiscordConnection:
         target += self.query_params
 
         if parsed.fragment:
-            target += '#' + parsed.fragment
+            target += f'#{parsed.fragment}'
 
         return self._proto.send(Request(parsed.hostname, target))
 
