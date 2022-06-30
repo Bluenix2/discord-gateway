@@ -162,7 +162,7 @@ class DiscordConnection:
         parsed = urlsplit(self.uri)
 
         if parsed.hostname is None:
-            raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
+            raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")  # pragma: no cover
 
         return parsed.hostname, parsed.port if parsed.port is not None else 443
 
