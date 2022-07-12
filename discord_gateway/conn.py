@@ -1,3 +1,4 @@
+import time
 import zlib
 from collections import deque
 from typing import (
@@ -71,6 +72,9 @@ class DiscordConnection:
     _bytes_buffer: bytearray
     _text_buffer: str
 
+    _latency: Deque[float]
+    _last_heartbeat: Optional[float]
+
     # This is actually a function that returns the underlying class, so we
     # can't annotate this attribute.
     # _inflator: zlib.decompressobj
@@ -91,7 +95,7 @@ class DiscordConnection:
         'uri', 'encoding', 'compress', 'dispatch_handled', 'session_id',
         'sequence', '_events', 'should_resume', '_proto', 'acknowledged',
         'heartbeat_interval', '_events', '_bytes_buffer', '_text_buffer',
-        '_inflator', '_attempts'
+        '_inflator', '_attempts', '_last_heartbeat', '_latency',
     )
 
     def __init__(
@@ -179,6 +183,14 @@ class DiscordConnection:
             ConnectionState.REMOTE_CLOSING
         }
 
+    @property
+    def latency(self) -> float:
+        """The rolling average latency between receiving an ACK."""
+        if not self._latency:
+            raise RuntimeError('Cannot calculate latency before receiving HEARTBEATs')
+
+        return sum(self._latency) / len(self._latency)
+
     def _encode(self, payload: Any) -> Event:
         """Prepare a payload to be sent to the gateway.
 
@@ -213,6 +225,9 @@ class DiscordConnection:
 
         self.acknowledged = True
         self.heartbeat_interval = None
+
+        self._latency = deque(maxlen=5)
+        self._last_heartbeat = None
 
         self._events = deque()  # Buffer of events received
 
@@ -309,6 +324,7 @@ class DiscordConnection:
 
             self.acknowledged = False
 
+        self._last_heartbeat = time.perf_counter()
         return self._proto.send(self._encode({
             'op': 1,
             'd': self.sequence,
@@ -332,6 +348,13 @@ class DiscordConnection:
         elif event['op'] == Opcode.HEARTBEAT_ACK:
             # Acknowlegment of our heartbeat
             self.acknowledged = True
+
+            # Doubt that there is a case where we get an HEARTBEAT_ACK without
+            # sending an HEARTBEAT, but
+            if self._last_heartbeat is not None:
+                self._latency.append(time.perf_counter() - self._last_heartbeat)
+                self._last_heartbeat = None
+
             return False, None
 
         elif event['op'] == Opcode.HELLO:
