@@ -360,11 +360,15 @@ class DiscordConnection:
         elif event['op'] == Opcode.HELLO:
             # Discord sends the interval in milliseconds
             self.heartbeat_interval = event['d']['heartbeat_interval'] / 1000
-            self._attempts = 0  # Considered a successful attempt
             return True, None
 
         elif event['op'] == Opcode.DISPATCH and event['t'] == 'READY':
             self.session_id = event['d']['session_id']
+            self._attempts = 0  # Considered a successful attempt
+            return True, None
+
+        elif event['op'] == Opcode.DISPATCH and event['t'] == 'RESUMED':
+            self._attempts = 0  # Considered a successful attempt
             return True, None
 
         elif event['op'] == Opcode.RECONNECT:
