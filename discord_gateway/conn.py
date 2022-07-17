@@ -104,6 +104,8 @@ class DiscordConnection:
         *,
         encoding: str,
         compress: Union[str, bool] = False,
+        session_id: Optional[str] = None,
+        sequence: Optional[int] = None,
         dispatch_handled: bool = False,
     ) -> None:
         """Initialize a Discord Connection.
@@ -139,10 +141,10 @@ class DiscordConnection:
 
         self.dispatch_handled = dispatch_handled
 
-        self.session_id = None
-        self.sequence = None
+        self.session_id = session_id
+        self.sequence = sequence
 
-        self.should_resume = None
+        self.should_resume = True if session_id is not None else None
         self._attempts = 0
 
         # This will initialize the rest of the attributes
