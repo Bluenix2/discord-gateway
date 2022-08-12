@@ -87,6 +87,7 @@ class DiscordConnection:
     should_resume: Optional[bool]
     session_id: Optional[str]
     sequence: Optional[int]
+    resume_uri: str
 
     acknowledged: bool
     heartbeat_interval: Optional[float]
@@ -95,7 +96,7 @@ class DiscordConnection:
         'uri', 'encoding', 'compress', 'dispatch_handled', 'session_id',
         'sequence', '_events', 'should_resume', '_proto', 'acknowledged',
         'heartbeat_interval', '_events', '_bytes_buffer', '_text_buffer',
-        '_inflator', '_attempts', '_last_heartbeat', '_latency',
+        '_inflator', '_attempts', '_last_heartbeat', '_latency', 'resume_uri',
     )
 
     def __init__(
@@ -106,6 +107,7 @@ class DiscordConnection:
         compress: Union[str, bool] = False,
         session_id: Optional[str] = None,
         sequence: Optional[int] = None,
+        resume_uri: Optional[str] = None,
         dispatch_handled: bool = False,
     ) -> None:
         """Initialize a Discord Connection.
@@ -127,6 +129,14 @@ class DiscordConnection:
                 compression and both cannot be used at the same time. Payload
                 compression is specified when IDENTIFYing. Specify
                 'zlib-stream' for transport compression.
+            session_id:
+                Session ID of last session connected to attempt to RESUME to
+                on startup. If this is passed `should_resume` will be `True`
+                even if this object has not been used for a connection yet.
+            sequence:
+                The event sequence from the last session, used to RESUME on
+                startup without establishing a first connection.
+            resume_uri: URI to use when resuming on startup.
             dispatch_handled:
                 Whether to dispatch automatically handled events. Examples of
                 these types of events are HEARTBEAT_ACK and RECONNECT. When
@@ -143,6 +153,8 @@ class DiscordConnection:
 
         self.session_id = session_id
         self.sequence = sequence
+
+        self.resume_uri = resume_uri or uri
 
         self.should_resume = True if session_id is not None else None
         self._attempts = 0
@@ -165,7 +177,10 @@ class DiscordConnection:
         The tuple has two items representing the host and port to open a TCP
         socket to.
         """
-        parsed = urlsplit(self.uri)
+        if self.should_resume:
+            parsed = urlsplit(self.resume_uri)
+        else:
+            parsed = urlsplit(self.uri)
 
         if parsed.hostname is None:
             raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
@@ -365,7 +380,10 @@ class DiscordConnection:
             return True, None
 
         elif event['op'] == Opcode.DISPATCH and event['t'] == 'READY':
+            # self.sequence was set at the top of this method
             self.session_id = event['d']['session_id']
+            self.resume_uri = event['d']['resume_gateway_url']
+
             self._attempts = 0  # Considered a successful attempt
             return True, None
 
