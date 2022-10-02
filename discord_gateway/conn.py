@@ -177,13 +177,11 @@ class DiscordConnection:
         The tuple has two items representing the host and port to open a TCP
         socket to.
         """
-        if self.should_resume:
-            parsed = urlsplit(self.resume_uri)
-        else:
-            parsed = urlsplit(self.uri)
+        uri = self.resume_uri if self.should_resume else self.uri
+        parsed = urlsplit(uri)
 
         if parsed.hostname is None:
-            raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
+            raise ValueError(f"Cannot parse hostname out of URI '{uri}'")
 
         return parsed.hostname, parsed.port if parsed.port is not None else 443
 
@@ -283,10 +281,11 @@ class DiscordConnection:
         and send data until an HELLO event and the first HEARTBEAT command
         has been sent.
         """
-        parsed = urlsplit(self.uri)
+        uri = self.resume_uri if self.should_resume else self.uri
+        parsed = urlsplit(uri)
 
         if parsed.hostname is None:
-            raise ValueError(f"Cannot parse hostname out of URI '{self.uri}'")
+            raise ValueError(f"Cannot parse hostname out of URI '{uri}'")
 
         target = parsed.path or '/'
 
