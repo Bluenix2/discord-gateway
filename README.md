@@ -33,7 +33,7 @@ from discord_gateway import DiscordConnection
 
 TOKEN = 'YOUR_VERY.WELL.HIDDEN_TOKEN'
 RECV_SIZE = 65536
-SERVER_NAME = 'gateway.discord.gg'
+SERVER_NAME = 'wss://gateway.discord.gg/'
 
 
 def heartbeat(conn, sock):
@@ -56,7 +56,7 @@ def main():
     conn = DiscordConnection(SERVER_NAME, encoding='json')
     ctx = ssl.create_default_context(cafile=certifi.where())
     sock = socket.create_connection(conn.destination)
-    sock = ctx.wrap_socket(sock, server_hostname=SERVER_NAME)
+    sock = ctx.wrap_socket(sock, server_hostname=conn.destination[0])
 
     sock.send(conn.connect())  # Convert to a WebSocket
 
@@ -109,14 +109,14 @@ and wrap it with TLS. Using the built-in `socket` and `ssl` module with
 `certifi` that looks like this:
 
 ```python
-SERVER_NAME = 'gateway.discord.gg'
+SERVER_NAME = 'wss://gateway.discord.gg/'
 
 
 conn = DiscordConnection(SERVER_NAME, encoding='json')
 sock = socket.create_connection(conn.destination)
 
 ctx = ssl.create_default_context(cafile=certifi.where())
-sock = ctx.wrap_socket(sock, server_hostname=SERVER_NAME)
+sock = ctx.wrap_socket(sock, server_hostname=conn.destination[0])
 ```
 
 After the connection is established, generate a HTTP 101 Switching Protocols
