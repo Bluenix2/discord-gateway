@@ -13,10 +13,10 @@ from wsproto.events import (
     Request, TextMessage
 )
 
-from .errors import (
+from ._errors import (
     CloseDiscordConnection, ConnectionRejected, RejectedConnectionData
 )
-from .opcode import Opcode
+from ._opcode import Opcode
 
 try:
     from erlpack import pack as etf_pack
@@ -40,7 +40,9 @@ except ImportError:
         from json import loads as json_loads
 
 
-__all__ = ('DiscordConnection',)
+__all__ = (
+    'DiscordConnection',
+)
 
 
 ZLIB_SUFFIX = b'\x00\x00\xff\xff'

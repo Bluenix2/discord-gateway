@@ -7,6 +7,6 @@ It means that this implementation can be reused for libraries implemented in a
 threading fashion or asyncio/trio/curio.
 """
 
-from .conn import *
-from .errors import *
-from .opcode import *
+from ._conn import *
+from ._errors import *
+from ._opcode import *

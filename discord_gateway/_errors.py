@@ -2,7 +2,11 @@ from typing import List, Optional, Tuple
 
 from wsproto.events import RejectConnection
 
-__all__ = ('CloseDiscordConnection', 'ConnectionRejected')
+__all__ = (
+    'CloseDiscordConnection',
+    'ConnectionRejected',
+    'RejectedConnectionData',
+)
 
 
 class CloseDiscordConnection(Exception):

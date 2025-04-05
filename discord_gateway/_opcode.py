@@ -1,7 +1,11 @@
 import enum
 from typing import Union
 
-__all__ = ('Opcode', 'CloseCode', 'should_reconnect')
+__all__ = (
+    'Opcode',
+    'CloseCode',
+    'should_reconnect',
+)
 
 
 class Opcode(enum.IntEnum):
